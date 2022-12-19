@@ -1,0 +1,5 @@
+make genfun.c generate two files
+ - decrypt.c
+ - encrypt.c
+
+make seperate file for strings and maybe omit the first point
