@@ -11,6 +11,7 @@ typedef struct main_funs_s {
 	HANDLE (WINAPI *GetProcessHeap)(VOID);
 	PVOID (NTAPI *RtlAllocateHeap)(PVOID HeapHandle, ULONG Flags, SIZE_T Size);
 	VOID (NTAPI *RtlInitUnicodeString)(PUNICODE_STRING DestinationString,PCWSTR SourceString);
+	PVOID sys_uni;
 } main_funs_t;
 
 //typedef NTSTATUS NTAPI (*sys_NtProtectVirtualMemory_t)(HANDLE ProcessHandle, PVOID *BaseAddress, PSIZE_T NumberOfBytesToProtect, DWORD NewAccessProtection, PDWORD OldAccessProtection);

@@ -1,6 +1,7 @@
 #include <Windows.h>
 #include <stdint.h>
 #include "../fun.h"
+#include <stdio.h>
 
 #define SET_SYSCALL(x)	__asm__ __volatile__("mov %0, %%r13d\n\t" : : "a" (x) : "%r13")
 
@@ -80,6 +81,6 @@ void entry(main_funs_t *fun) {
 		}
 	}
 
-	SET_SYSCALL(numSys[SYS_CREATEPROC]);
+	printf("%X\n", numSys[0]);
 	return;
 }

@@ -8,6 +8,8 @@ NTSTATUS NTAPI sys_NtCreateFile(PHANDLE,ACCESS_MASK,POBJECT_ATTRIBUTES,PIO_STATU
 NTSTATUS NTAPI sys_NtReadFile(HANDLE,HANDLE,PIO_APC_ROUTINE,PVOID,PIO_STATUS_BLOCK,PVOID,ULONG,PLARGE_INTEGER,PULONG);
 void sys_uni();
 
+void entry(main_funs_t* f);
+
 //char buf[] = {0x90, 0x90, 0x90, 0x90, 0xC3};
 
 uint8_t main_fun[] = 
@@ -33,7 +35,8 @@ int main(int argc, char *argv[]) {
 	main_funs.RtlInitUnicodeString = RtlInitUnicodeString;
 	main_funs.sys_uni = sys_uni;
 
-	(*(void(*)(main_funs_t*))main_fun)(&main_funs);
+	//(*(void(*)(main_funs_t*))main_fun)(&main_funs);
+	entry(&main_funs);
 
 	return 0;
 }

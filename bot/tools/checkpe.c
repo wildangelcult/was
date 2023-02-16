@@ -6,7 +6,7 @@
 int main(int argc, char *argv[]) {
 	FILE *fp;
 	long int fileSize;
-	uint8_t *readBuf
+	uint8_t *readBuf;
 	PIMAGE_NT_HEADERS64 ntHeaders;
 
 	if (argc < 2) {
@@ -56,6 +56,16 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "[-] No .reloc section\n");
 		return 1;
 	}
+
+	printf("[*] Base: %x\n", ntHeaders->OptionalHeader.ImageBase);
+	PIMAGE_EXPORT_DIRECTORY export = (PIMAGE_EXPORT_DIRECTORY)(readBuf + ntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
+	uint32_t *names = (uint32_t*)(readBuf + export->AddressOfNames);
+	printf("[*] RVA: %x\n", export->AddressOfNames);
+	printf("[*] Names: %s\n", names);
+
+//	printf("[*] First export %s\n", (char*)(readBuf + ((uint32_t*)(readBuf + ((PIMAGE_EXPORT_DIRECTORY)(readBuf + ntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress))->AddressOfNames))[0]));
+
+	printf("[+] Done\n");
 
 	free(readBuf);
 

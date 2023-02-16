@@ -1,6 +1,7 @@
 	global	sys_NtProtectVirtualMemory
 	global	sys_NtCreateFile
 	global	sys_NtReadFile
+	global	sys_uni
 	section	.text
 
 sys_NtProtectVirtualMemory:
@@ -18,5 +19,12 @@ sys_NtCreateFile:
 sys_NtReadFile:
 	mov r10, rcx
 	mov eax, 6h
+	syscall
+	ret
+
+;to be patched
+sys_uni:
+	mov r10, rcx
+	mov eax, r13d
 	syscall
 	ret
