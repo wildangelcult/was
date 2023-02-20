@@ -11,6 +11,8 @@ typedef struct main_funs_s {
 	HANDLE (WINAPI *GetProcessHeap)(VOID);
 	PVOID (NTAPI *RtlAllocateHeap)(PVOID HeapHandle, ULONG Flags, SIZE_T Size);
 	VOID (NTAPI *RtlInitUnicodeString)(PUNICODE_STRING DestinationString,PCWSTR SourceString);
+	NTSTATUS (NTAPI *RtlCreateProcessParametersEx)(PRTL_USER_PROCESS_PARAMETERS* pProcessParameters, PUNICODE_STRING ImagePathName, PUNICODE_STRING DllPath, PUNICODE_STRING CurrentDirectory, PUNICODE_STRING CommandLine, PVOID Environment, PUNICODE_STRING WindowTitle, PUNICODE_STRING DesktopInfo, PUNICODE_STRING ShellInfo, PUNICODE_STRING RuntimeData, ULONG Flags);
+
 	PVOID sys_uni;
 } main_funs_t;
 

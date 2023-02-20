@@ -62,6 +62,7 @@ void entry(main_funs_t *fun) {
 
 	for (i = 0, k = 0; /*i < export->NumberOfFunctions ||*/ k != SYS_MAX; ++i) {
 		name = (char*)(ntdllBuf + funName[i] - exportSec->VirtualAddress + exportSec->PointerToRawData);
+		printf("[*] %s\n", name);
 		for (j = 0, pStrSys = strSys; *pStrSys; ++j) {
 			pName = name;
 			while (*pStrSys && (*pStrSys == *pName)) {

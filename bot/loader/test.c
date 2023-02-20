@@ -1,23 +1,36 @@
 #include <Windows.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
+#include <ntdef.h>
+#include <winternl.h>
+#include "ntpsapi.h"
 
-#define NTDLL_SIZE 3000000
+int main()
+{
+	// Path to the image file from which the process will be created
+	UNICODE_STRING NtImagePath;
+	RtlInitUnicodeString(&NtImagePath, (PWSTR)L"\\??\\C:\\Windows\\System32\\calc.exe");
 
-int main(int argc, char *argv[]) {
-	FILE *fp = fopen("C:\\Windows\\System32\\ntdll.dll", "rb");
-	uint8_t *buf = (uint8_t*)malloc(NTDLL_SIZE);
-	fread(buf, 1, NTDLL_SIZE, fp);
-	//printf("%u\n", fread(buf, 1, NTDLL_SIZE, fp));
-	PIMAGE_DOS_HEADER dos = buf;
-	PIMAGE_NT_HEADERS64 nt = (PIMAGE_NT_HEADERS64)(buf + dos->e_lfanew);
-	PIMAGE_SECTION_HEADER section = IMAGE_FIRST_SECTION(nt);
+	// Create the process parameters
+	PRTL_USER_PROCESS_PARAMETERS ProcessParameters = NULL;
+	RtlCreateProcessParametersEx(&ProcessParameters, &NtImagePath, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, RTL_USER_PROCESS_PARAMETERS_NORMALIZED);
 
-	printf("%x\n", dos->e_magic);
-	printf("%x\n", nt->Signature);
-	printf("%x - %x = %d\n", section->VirtualAddress, section->PointerToRawData, - section->VirtualAddress + section->PointerToRawData);
+	// Initialize the PS_CREATE_INFO structure
+	PS_CREATE_INFO CreateInfo = { 0 };
+	CreateInfo.Size = sizeof(CreateInfo);
+	CreateInfo.State = PsCreateInitialState;
 
-	free(buf);
-	return 0;
+	PS_ATTRIBUTE_LIST AttributeList;
+	//memset(&AttributeList, 0, sizeof(PS_ATTRIBUTE_LIST));
+	AttributeList.TotalLength = sizeof(PS_ATTRIBUTE_LIST);
+	AttributeList.Attributes.Attribute = PS_ATTRIBUTE_IMAGE_NAME;
+	AttributeList.Attributes.Size = NtImagePath.Length;
+	AttributeList.Attributes.Value = (ULONG_PTR)NtImagePath.Buffer;
+	AttributeList.Attributes.ReturnLength = 0;
+
+	// Create the process
+	HANDLE hProcess, hThread = NULL;
+	NtCreateUserProcess(&hProcess, &hThread, PROCESS_ALL_ACCESS, THREAD_ALL_ACCESS, NULL, NULL, NULL, NULL, ProcessParameters, &CreateInfo, &AttributeList);
+
+	// Clean up
+	RtlDestroyProcessParameters(ProcessParameters);
 }
+
