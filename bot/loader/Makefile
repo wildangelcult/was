@@ -3,9 +3,9 @@
 .PHONY: all clean testdll
 all:
 	make -C encfun
-	nasm -fwin64 syscalls.asm -o syscalls.o
-	gcc -c loaderloader.c $(DEBUG)
-	gcc loaderloader.o syscalls.o -o loaderloader -lkernel32 -lntdll $(DEBUG)
+	nasm -fwin64 sys_protect.asm -o sys_protect.o
+	../tools/genfun.exe e testdll.dll loader.h encfun/encrypt.code
+	gcc loaderloader.c encfun/decrypt.c sys_protect.o -o loaderloader -lkernel32 -lntdll $(DEBUG)
 
 testdll:
 	gcc testdll.c -nostdlib -nostartfiles -e DllMain -shared -lkernel32 -ladvapi32 -s -o testdll.dll

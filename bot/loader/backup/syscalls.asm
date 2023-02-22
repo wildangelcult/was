@@ -22,7 +22,6 @@ sys_NtReadFile:
 	syscall
 	ret
 
-;to be patched
 sys_uni:
 	mov r10, rcx
 	mov eax, r13d

