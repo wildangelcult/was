@@ -56,9 +56,11 @@ int main(int argc, char *argv[]) {
 	main_funs_t main_funs;
 	SIZE_T i, n;
 
+#ifndef DEBUG
 	for (i = 0, n = 0; i < 0x7FFFFFFFF; ++i) {
 		n += i;
 	}
+#endif
 
 	decrypt(loader, sizeof(loader));
 	decrypt(sys_create, sizeof(sys_create));

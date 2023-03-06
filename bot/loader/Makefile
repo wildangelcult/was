@@ -1,14 +1,15 @@
-#DEBUG := -g -ggdb
+.PHONY: all clean
 
-.PHONY: all clean testdll
+DEBUG ?= 1
+
+CFLAGS := -DDEBUG
+ifndef DEBUG
+CFLAGS := -s
+endif
+
 all:
-	make -C encfun
-	nasm -fwin64 sys_protect.asm -o sys_protect.o
-	../tools/genfun.exe e testdll.dll loader.h encfun/encrypt.code
-	gcc loaderloader.c encfun/decrypt.c sys_protect.o -o loaderloader -lkernel32 -lntdll $(DEBUG)
-
-testdll:
-	gcc testdll.c -nostdlib -nostartfiles -e DllMain -shared -lkernel32 -ladvapi32 -s -o testdll.dll
+	#gcc loader.c -nostdlib -nostartfiles -e DllMain -shared -lkernel32 -o loader.dll $(CFLAGS)
+	gcc loader.c ../loaderloader/sys_protect.o -lntdll -lkernel32 -o loader.exe $(CFLAGS)
 
 clean:
-	rm -f *.o *.exe *.bin
+	rm -f *.o *.exe
