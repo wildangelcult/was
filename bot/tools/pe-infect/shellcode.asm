@@ -1,10 +1,15 @@
 	bits 64	
 	section	.text
 
+	; save original registers
+	push rdx
+	push r8
+	push r9
 	call main
 main:
 	pop r9
 	sub r9, main
+
 	mov rax, gs:[0x60]		; PEB
 	mov rax, [rax + 0x18]		; PEB->Ldr
 	mov rsi, [rax + 0x10]		; PEB->Ldr.InMemoryOrderModuleList
@@ -61,11 +66,15 @@ findfun:
 	call rdx			; LoadLibraryA
 	add rsp, 0x8
 
+	; restore original registers
+	pop r9
+	pop r8
+	pop rdx
 	; get the current ImageBase
-	mov rax, [r13 + 0x30]
+	mov rcx, [r13 + 0x30]
 	mov rbx, 0xAAAAAAAAAAAAAAAA
-	add rax, rbx
-	push rax
+	add rcx, rbx
+	push rcx
 	ret
 
 dllname:

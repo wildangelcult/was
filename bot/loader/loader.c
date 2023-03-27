@@ -16,6 +16,9 @@ uint8_t bot[] =
 int main(int argc, char *argv[]) {
 	rand_init();
 	driver_open();
+	driver_init();
+
+
 	system("pause");
 	driver_close();
 	return 0;
