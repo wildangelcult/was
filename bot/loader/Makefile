@@ -7,10 +7,12 @@ ifndef DEBUG
 CFLAGS := -s
 endif
 
+FILES := loader.c driver.c util.c KDU/hde/hde64.c KDU/dsefix.c
+
 all:
 	#gcc loader.c -nostdlib -nostartfiles -e DllMain -shared -lkernel32 -o loader.dll $(CFLAGS)
 	../tools/bin2hex.exe ../bot/bot.sys bot.h
-	gcc loader.c driver.c util.c -lntdll -lkernel32 -o loader.exe $(CFLAGS)
+	gcc $(FILES) -lntdll -lkernel32 -o loader.exe $(CFLAGS)
 	cp loader.exe /d/Shared/
 
 rtcore64:

