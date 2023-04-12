@@ -2,13 +2,10 @@
 void decrypt(uint8_t *buf, size_t bufSize) {
 	size_t i;
 	for (i = 0; i < bufSize; ++i) {
-		buf[i] += 99;
-		buf[i] ^= 185;
-		buf[i] = ~buf[i];
-		buf[i] = ~buf[i];
-		buf[i] = -buf[i];
-		buf[i] = -buf[i];
-		buf[i] -= 18;
-		buf[i] += 149;
+		buf[i] += 212;
+		buf[i] += 207;
+		buf[i] += 180;
+		buf[i] ^= 117;
+		buf[i] ^= 68;
 	}
 }

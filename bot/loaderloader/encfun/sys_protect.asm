@@ -1,13 +1,9 @@
+	bits 64	
 	global	sys_NtProtectVirtualMemory
 	section	.text
 
 sys_NtProtectVirtualMemory:
-	xor rax, rcx
+	mov r10, rcx
+	mov eax, 50h
+	syscall
 	ret
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
