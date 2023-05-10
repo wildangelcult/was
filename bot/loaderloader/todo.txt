@@ -1,2 +1,0 @@
-ntwritevirtualmemory write func
-resolve imports using getproc

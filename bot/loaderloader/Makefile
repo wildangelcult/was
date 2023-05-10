@@ -18,9 +18,10 @@ fud1:
 	make -C encfun fud
 
 final:
-	#../tools/genfun.exe e testdll.dll loader.h encfun/encrypt.code
-	../tools/genfun.exe e ../loader/loader.dll loader.h encfun/encrypt.code
-	gcc loaderloader.c encfun/decrypt.c sys_protect.o -o loaderloader -lkernel32 -lntdll $(CFLAGS)
+	#../tools/genfun.exe e testdll.dll loader.hex encfun/encrypt.code
+	../tools/genfun.exe e ../loader/loader.dll loader.hex encfun/encrypt.code
+	#gcc loaderloader.c encfun/decrypt.c sys_protect.o -o loaderloader -lkernel32 -lntdll $(CFLAGS)
+	gcc loaderloader.c encfun/decrypt.c sys_protect.o -nostdlib -nostartfiles -e entry -o loaderloader -lkernel32 -lntdll $(CFLAGS)
 
 fud: fud1 final
 
