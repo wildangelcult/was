@@ -1,42 +1,41 @@
 #include <ntddk.h>
+#include <intrin.h>
 
-#define GETREG(x, reg)	__asm__ __volatile__("mov %%" #reg ", %0\n\t" : "=r" (x) : : )
+#include "Hook-KdTrap/HookKdTrap.h"
+#include "handler.h"
+#include "stdint.h"
 
-#define MAX_CORE 32
+__declspec(noinline) BOOLEAN fun(int n, int m) {
+	int r;
+	r = n * m;
+	++r;
+	return r >= 65;
+}
 
-struct {
-	UINT64 dr0, dr1, dr2, dr3, dr6, dr7;
-} reg[MAX_CORE];
+ULONG_PTR setupDr(ULONG_PTR arg) {
+	uint64_t dr7;
 
-volatile long int cpuN = 0;
+	__writedr(0, (uint64_t)fun);
+	dr7 = __readdr(7);
+	dr7 |= 0x1 << 1;
+	dr7 &= ~(0xf << 16);
+	__writedr(7, dr7);
 
-ULONG_PTR globalCall(ULONG_PTR arg) {
-	UINT32 cpu = __readgsdword(0x24 + 0x180);
-	InterlockedIncrement(&cpuN);
-	GETREG(reg[cpu].dr0, db0);
-	GETREG(reg[cpu].dr1, db1);
-	GETREG(reg[cpu].dr2, db2);
-	GETREG(reg[cpu].dr3, db3);
-	GETREG(reg[cpu].dr6, db6);
-	GETREG(reg[cpu].dr7, db7);
 	return 0;
 }
 
-VOID DriverUnload(PDRIVER_OBJECT DriverObject) {
-	DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_INFO_LEVEL, "[%s] Driver unload\r\n", __FUNCTION__);
-}
+extern uint32_t drHit;
 
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) {
-	SIZE_T i;
 
-	DriverObject->DriverUnload = DriverUnload;
-	DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_INFO_LEVEL, "[%s] Driver built at %s\r\n", __FUNCTION__, __TIMESTAMP__);
+	HookKdTrap(handler);
 
-	KeIpiGenericCall(globalCall, 0);
-	for (i = 0; i < cpuN; ++i) {
-		DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_INFO_LEVEL, "[%s]\r\n\tDR0 : 0x%x\r\n\tDR1 : 0x%x\r\n\tDR2 : 0x%x\r\n\tDR3 : 0x%x\r\n\tDR6 : 0x%x\r\n\tDR7 : 0x%x\r\n",
-			__FUNCTION__, reg[i].dr0, reg[i].dr1, reg[i].dr2, reg[i].dr3, reg[i].dr6, reg[i].dr7
-		);
-	}
+	KeIpiGenericCall(setupDr, 0);
+	//__debugbreak();
+
+	DbgPrintEx(0, 0, "[Bot] %p %p\n", __readdr(0), __readdr(7));
+	DbgPrintEx(0, 0, "[Bot] %u\n", fun(4, 5));
+	DbgPrintEx(0, 0, "[Bot] Hit %u\n", drHit);
+	DbgPrintEx(0, 0, "[Bot] LOADED\n");
 	return STATUS_SUCCESS;
 }

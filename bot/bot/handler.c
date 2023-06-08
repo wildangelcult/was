@@ -1,0 +1,35 @@
+#include "handler.h"
+#include "hde/hde64.h"
+
+#include <intrin.h>
+
+uint32_t drHit = 0;
+
+__declspec(noinline) BOOLEAN fun(int n, int m);
+
+__declspec(noinline) BOOLEAN hooked() {
+	DbgPrintEx(0, 0, "[Bot] Hook\n");
+	return TRUE;
+}
+
+BOOLEAN handler(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context) {
+	//hde64s hs;
+	uint64_t dr6;
+	if (ExceptionRecord->ExceptionCode == STATUS_BREAKPOINT || ExceptionRecord->ExceptionCode == STATUS_SINGLE_STEP) {
+		if ((dr6 = __readdr(6)) & 0x1) {
+			dr6 &= ~(0xf | 1 << 13 | 1 << 14);
+			__writedr(6, dr6);
+			InterlockedExchange(&drHit, 1);
+			//Context->Rip += hde64_disasm((PVOID)Context->Rip, &hs);
+
+			Context->Rsp -= 0x8;
+			//*(uint64_t*)Context->Rsp = Context->Rip;
+			//Context->Rip = (uint64_t)hooked;
+			*(uint64_t*)Context->Rsp = (uint64_t)hooked;
+
+			Context->EFlags |= 1 << 16;
+			return TRUE;
+		}
+	}
+	return FALSE;
+}

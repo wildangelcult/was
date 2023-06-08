@@ -2,7 +2,7 @@
 #include "HookKdTrap.h"
 #include "DriverEntry.h"
 
-#define __nop() __asm__ __volatile__("nop" : : : )
+//#define __nop() __asm__ __volatile__("nop" : : : )
 
 __forceinline void KSleep(uint64_t ms)
 {
@@ -76,6 +76,7 @@ __declspec(noinline) void TestSeh()
 
 	__try
 	{
+#pragma warning(disable : 4197)
 		volatile uint64_t a = (volatile uint64_t)1;
 		volatile uint64_t b = (volatile uint64_t)0;
 		__nop();
@@ -95,10 +96,12 @@ void exceptionfun()
 		//test seh are working
 		TestSeh();
 		
+		DbgPrintEx(0, 0, "[HookKdTrap] Exception up ahead\n");
 		//try some dangerous, see Handler
 		*(volatile uint8_t*)0;
 		__writecr3(__readcr3() | (uint64_t)1 << 63);
 		*(volatile uint8_t*)0;
+		DbgPrintEx(0, 0, "[HookKdTrap] After exception\n");
 
 		//can't do this since this kind of fault doesn't go into KdTrap 
 		//KiPageFault->MmAccessFault->MiSystemFault->BugCheck 

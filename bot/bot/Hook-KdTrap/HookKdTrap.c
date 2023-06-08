@@ -1,6 +1,8 @@
 #include "Utils.h"
 #include "HookKdTrap.h"
 
+//extern ULONG NtGlobalFlag;
+
 #define BpMe
 
 PVOID NtBase = 0;
@@ -27,24 +29,21 @@ typedef struct _CONTEXT_RETURN {
 	uint64_t RFlags;
 } CONTEXT_RETURN;
 
-extern"C"
-{
-	//void HalpTscQueryCounterOrdered(uint64_t a1, uint64_t a2);
-	void HookPosition(uint64_t a1, uint64_t a2);
-	UINT64 CalledHookTimes = 0;//will be big
-	void* CalloutReturn(CONTEXT_RETURN*);
-	uint64_t GetR12();
-	uint64_t GetR13();
-	void SetR13(uint64_t NewR13);
-	void SetR12(uint64_t NewR12);
-	uint64_t HalpStallCounter = 0;
-	uint64_t OldHalQueryCounter = 0;
-}
+//void HalpTscQueryCounterOrdered(uint64_t a1, uint64_t a2);
+void HookPosition(uint64_t a1, uint64_t a2);
+UINT64 CalledHookTimes = 0;//will be big
+void* CalloutReturn(CONTEXT_RETURN*);
+uint64_t GetR12();
+uint64_t GetR13();
+void SetR13(uint64_t NewR13);
+void SetR12(uint64_t NewR12);
+uint64_t HalpStallCounter = 0;
+uint64_t OldHalQueryCounter = 0;
 
-using KdAcquireDebuggerLockFn = void(__fastcall*) (unsigned __int8* a1);
+typedef void (__fastcall *KdAcquireDebuggerLockFn)(unsigned __int8* a1);
 KdAcquireDebuggerLockFn KdAcquireDebuggerLock = 0;
 
-using KdReleaseDebuggerLockFn = __int64(__fastcall*) (unsigned __int8 a1);
+typedef __int64 (__fastcall *KdReleaseDebuggerLockFn)(unsigned __int8 a1);
 KdReleaseDebuggerLockFn KdReleaseDebuggerLock = 0;
 
 /*
@@ -124,7 +123,7 @@ uint64_t KeFreezeExecution = 0;
 
 void NTContinue(PCONTEXT Context, ULONG64 Rip)
 {
-	CONTEXT_RETURN Ctx{};
+	CONTEXT_RETURN Ctx;
 	Ctx.Stack = (PVOID)Context->Rsp;
 	Ctx.Function = Rip;
 	Ctx.RAX = Context->Rax;
@@ -221,24 +220,26 @@ uint32_t GetExceptionStackOffset()
 	return ExceptionStackOffset;
 }
 
-bool IsCurrentExceptionOnExceptionStack()
+BOOLEAN IsCurrentExceptionOnExceptionStack()
 {
 	//winver too low, windows is not implementing Exception Stack
 	if (!ExceptionStackOffset)
-		return false;
+		return FALSE;
 
 	if (
 		__readgsbyte(ExceptionStackOffset - 2)	/* ExceptionStackActive */
 		)
 	{
-		return false;
+		return FALSE;
 	}
 
 	return __readgsqword(ExceptionStackOffset) - (uint64_t)_AddressOfReturnAddress() < (uint64_t)0x6000;
 }
 
-template<typename F>
-BOOLEAN DoStackTrace(F const& f, void* CustomStackFrame = 0, bool ReverseDirection = false)
+typedef BOOLEAN (*stackTraceFn)(void* traceCtx, void** stack_current);
+
+//template<typename F>
+BOOLEAN DoStackTrace(stackTraceFn f, void* traceCtx, void* CustomStackFrame /*= 0*/, BOOLEAN ReverseDirection /*= FALSE*/)
 {
 	//__writegsbyte(0x5DA6, 1);// no exception stack
 
@@ -247,7 +248,7 @@ BOOLEAN DoStackTrace(F const& f, void* CustomStackFrame = 0, bool ReverseDirecti
 	if (CustomStackFrame)
 		stack_frame = (PVOID*)CustomStackFrame;
 
-	bool bExceptionOnExceptionStack = IsCurrentExceptionOnExceptionStack();
+	BOOLEAN bExceptionOnExceptionStack = IsCurrentExceptionOnExceptionStack();
 
 	if (bExceptionOnExceptionStack)
 	{
@@ -268,7 +269,7 @@ BOOLEAN DoStackTrace(F const& f, void* CustomStackFrame = 0, bool ReverseDirecti
 	{
 		for (void** stack_current = stack_frame; stack_current < stack_max; ++stack_current)
 		{
-			if (f(stack_current))
+			if (f(traceCtx, stack_current))
 			{
 				return TRUE;
 			}
@@ -278,7 +279,7 @@ BOOLEAN DoStackTrace(F const& f, void* CustomStackFrame = 0, bool ReverseDirecti
 	{
 		for (void** stack_current = stack_max; stack_current > stack_frame; --stack_current)
 		{
-			if (f(stack_current))
+			if (f(traceCtx, stack_current))
 			{
 				return TRUE;
 			}
@@ -332,7 +333,77 @@ ExceptionCallback g_Handler = 0;
 0f nt!PspSystemThreadStartup+0x55
 10 nt!KiStartSystemThread+0x2a
 */
-extern"C" void ExceptionHandler(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context)
+
+typedef struct {
+	CONTEXT_RETURN ReturnCtx;
+	BOOLEAN bRbxFound, bNonVolatileRegFound, bStackFound, bRFlagsFound;
+} trace_ExceptionHandler_ctx;
+
+BOOLEAN trace_ExceptionHandler(void* traceCtx, void** stack_current) {
+	trace_ExceptionHandler_ctx *ctx = traceCtx;
+	if (!ctx->bRFlagsFound)
+	{
+		if (*(uint64_t*)(stack_current) > KdEnterDebugger &&
+			*(uint64_t*)(stack_current)-KdEnterDebugger < 0x100 &&
+			*(uint8_t*)(*(uint64_t*)(stack_current)-5) == 0xE8 &&			/* Make sure it's a call */
+			*(uint32_t*)(*(uint64_t*)(stack_current)) == 0x48f08a44			/* mov r14b, al;  mov xxx */
+			)
+		{
+			//BpMe(__LINE__);
+			ctx->ReturnCtx.RFlags = *(uint64_t*)((uint64_t)stack_current - 0x8);
+			ctx->bRFlagsFound = TRUE;
+		}
+		return FALSE;
+	}
+
+	if (!ctx->bNonVolatileRegFound)
+	{
+		if (*(uint64_t*)(stack_current) > KdpTrap && *(uint64_t*)(stack_current)-KdpTrap < 0x250)
+		{
+			ctx->ReturnCtx.RBP = *(uint64_t*)((uint64_t)stack_current + 0x10);
+			ctx->ReturnCtx.RSI = *(uint64_t*)((uint64_t)stack_current + 0x18);
+			ctx->ReturnCtx.RDI = *(uint64_t*)((uint64_t)stack_current + 0x20);
+
+			ctx->ReturnCtx.R13 = *(uint64_t*)((uint64_t)stack_current - 0x8);
+			ctx->ReturnCtx.R14 = *(uint64_t*)((uint64_t)stack_current - 0x10);
+			ctx->ReturnCtx.R15 = *(uint64_t*)((uint64_t)stack_current - 0x18);
+
+			ctx->ReturnCtx.R12 = GetR12();
+			ctx->bNonVolatileRegFound = TRUE;
+		}
+		return FALSE;
+	}
+
+	if (!ctx->bRbxFound)
+	{
+		if (*(uint64_t*)(stack_current) > KdTrap && *(uint64_t*)(stack_current)-KdTrap < 0x50)
+		{
+			if (MmIsAddressValid(*(PVOID*)((uint64_t)stack_current + 8)))
+			{
+				ctx->ReturnCtx.RBX = *(uint64_t*)((uint64_t)stack_current + 8);
+				ctx->bRbxFound = TRUE;
+			}
+		}
+		return FALSE;
+	}
+
+	if (!ctx->bStackFound)
+	{
+		if (*(uint64_t*)(stack_current) > KiDispatchException + 0x100 &&
+			*(uint64_t*)(stack_current)-KiDispatchException < 0x400)
+		{
+			ctx->ReturnCtx.Function = *(uint64_t*)(stack_current);
+			//ctx.RBX = *(uint64_t*)((uint64_t)stack_current + 8);
+			ctx->ReturnCtx.Stack = (PVOID)((uint64_t)stack_current + 8);
+			ctx->bStackFound = TRUE;
+		}
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+void ExceptionHandler(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context)
 {
 	//enviroment: interrupt disabled 
 	//todo : relpace unreliable SetR1X/GetR1X 
@@ -386,8 +457,8 @@ extern"C" void ExceptionHandler(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Cont
 
 	*/
 
-	CONTEXT_RETURN ReturnCtx{};
-	ReturnCtx.RAX = 0;
+	//CONTEXT_RETURN ReturnCtx{};
+	//ReturnCtx.RAX = 0;
 
 	// cost 8 hour for writing this stupid code 
 	//ReturnCtx.RFlags = Context->EFlags;		
@@ -403,77 +474,16 @@ extern"C" void ExceptionHandler(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Cont
 	////	ReturnCtx.RFlags = __readeflags() | 0x200;
 
 
-	bool
-		bRbxFound = false,
-		bNonVolatileRegFound = false,
-		bStackFound = false,
-		bRFlagsFound = false
-		;
+	
+	trace_ExceptionHandler_ctx traceCtx;
+	traceCtx.ReturnCtx.RAX = 0;
+	traceCtx.bRbxFound = FALSE;
+	traceCtx.bNonVolatileRegFound = FALSE;
+	traceCtx.bStackFound = FALSE;
+	traceCtx.bRFlagsFound = FALSE;
 
-	auto traceResult = DoStackTrace([&](void** stack_current) -> BOOLEAN
-		{
-			if (!bRFlagsFound)
-			{
-				if (*(uint64_t*)(stack_current) > KdEnterDebugger &&
-					*(uint64_t*)(stack_current)-KdEnterDebugger < 0x100 &&
-					*(uint8_t*)(*(uint64_t*)(stack_current)-5) == 0xE8 &&			/* Make sure it's a call */
-					*(uint32_t*)(*(uint64_t*)(stack_current)) == 0x48f08a44			/* mov r14b, al;  mov xxx */
-					)
-				{
-					//BpMe(__LINE__);
-					ReturnCtx.RFlags = *(uint64_t*)((uint64_t)stack_current - 0x8);
-					bRFlagsFound = true;
-				}
-				return FALSE;
-			}
 
-			if (!bNonVolatileRegFound)
-			{
-				if (*(uint64_t*)(stack_current) > KdpTrap && *(uint64_t*)(stack_current)-KdpTrap < 0x250)
-				{
-					ReturnCtx.RBP = *(uint64_t*)((uint64_t)stack_current + 0x10);
-					ReturnCtx.RSI = *(uint64_t*)((uint64_t)stack_current + 0x18);
-					ReturnCtx.RDI = *(uint64_t*)((uint64_t)stack_current + 0x20);
-
-					ReturnCtx.R13 = *(uint64_t*)((uint64_t)stack_current - 0x8);
-					ReturnCtx.R14 = *(uint64_t*)((uint64_t)stack_current - 0x10);
-					ReturnCtx.R15 = *(uint64_t*)((uint64_t)stack_current - 0x18);
-
-					ReturnCtx.R12 = GetR12();
-					bNonVolatileRegFound = true;
-				}
-				return FALSE;
-			}
-
-			if (!bRbxFound)
-			{
-				if (*(uint64_t*)(stack_current) > KdTrap && *(uint64_t*)(stack_current)-KdTrap < 0x50)
-				{
-					if (MmIsAddressValid(*(PVOID*)((uint64_t)stack_current + 8)))
-					{
-						ReturnCtx.RBX = *(uint64_t*)((uint64_t)stack_current + 8);
-						bRbxFound = true;
-					}
-				}
-				return FALSE;
-			}
-
-			if (!bStackFound)
-			{
-				if (*(uint64_t*)(stack_current) > KiDispatchException + 0x100 &&
-					*(uint64_t*)(stack_current)-KiDispatchException < 0x400)
-				{
-					ReturnCtx.Function = *(uint64_t*)(stack_current);
-					//ctx.RBX = *(uint64_t*)((uint64_t)stack_current + 8);
-					ReturnCtx.Stack = (PVOID)((uint64_t)stack_current + 8);
-					bStackFound = true;
-				}
-				return FALSE;
-			}
-
-			return TRUE;
-
-		}, _AddressOfReturnAddress(), true);
+	BOOLEAN traceResult = DoStackTrace(trace_ExceptionHandler, &traceCtx, _AddressOfReturnAddress(), TRUE);
 
 
 	if (!traceResult)
@@ -490,13 +500,79 @@ extern"C" void ExceptionHandler(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Cont
 
 	BpMe(__LINE__);
 
-	CalloutReturn(&ReturnCtx);
+	CalloutReturn(&traceCtx.ReturnCtx);
 
 	BpMe(__LINE__);
 	KeBugCheck(0);
 }
 
-extern"C" uint64_t CheckCallCtx()
+typedef struct {
+	BOOLEAN bKeStallExecutionProcessor, bKeFreezeExecution, bKdpReport, bKdpTrap, bKdTrap, bKiDispatchException;
+} trace_CheckCallCtx_ctx;
+
+BOOLEAN trace_CheckCallCtx(void* traceCtx, void** stack_current) {
+	trace_CheckCallCtx_ctx *ctx = traceCtx;
+	if (*(uint64_t*)stack_current == 0)
+		return FALSE;
+
+	if (!ctx->bKeStallExecutionProcessor)
+	{
+		if (*(uint64_t*)stack_current > (uint64_t)KeStallExecutionProcessor + 0x50 &&
+			*(uint64_t*)stack_current - (uint64_t)KeStallExecutionProcessor < 0x200)
+			ctx->bKeStallExecutionProcessor = TRUE;
+
+		return FALSE;
+	}
+
+	if (!ctx->bKeFreezeExecution)
+	{
+		if (*(uint64_t*)stack_current > KeFreezeExecution + 0x50 &&
+			*(uint64_t*)stack_current - KeFreezeExecution < 0x200)
+			ctx->bKeFreezeExecution = TRUE;
+
+		return FALSE;
+	}
+
+	if (!ctx->bKdpReport)
+	{
+		if (*(uint64_t*)stack_current > KdpReport + 0x50 &&
+			*(uint64_t*)stack_current - KdpReport < 0x150)
+			ctx->bKdpReport = TRUE;
+
+		return FALSE;
+	}
+
+	if (!ctx->bKdpTrap)
+	{
+		if (*(uint64_t*)stack_current > KdpTrap + 0x50 &&
+			*(uint64_t*)stack_current - KdpTrap < 0x250)
+			ctx->bKdpTrap = TRUE;
+
+		return FALSE;
+	}
+
+	if (!ctx->bKdTrap)
+	{
+		if (*(uint64_t*)stack_current > KdTrap &&
+			*(uint64_t*)stack_current - KdTrap < 0x50)
+			ctx->bKdTrap = TRUE;
+
+		return FALSE;
+	}
+
+	if (!ctx->bKiDispatchException)
+	{
+		if (*(uint64_t*)stack_current > KiDispatchException + 0x100 &&
+			*(uint64_t*)stack_current - KiDispatchException < 0x400)
+			ctx->bKiDispatchException = TRUE;
+
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+uint64_t CheckCallCtx()
 {
 	/*
 	Find :
@@ -512,83 +588,99 @@ extern"C" uint64_t CheckCallCtx()
 		Increase code efficiency by recognize irrevalent calls and return early.
 	*/
 
-	bool
-		bKeStallExecutionProcessor = false,
-		bKeFreezeExecution = false,
-		bKdpReport = false,
-		bKdpTrap = false,
-		bKdTrap = false,
-		bKiDispatchException = false
-		;
+	trace_CheckCallCtx_ctx traceCtx;
+	traceCtx.bKeStallExecutionProcessor = FALSE;
+	traceCtx.bKeFreezeExecution = FALSE;
+	traceCtx.bKdpReport = FALSE;
+	traceCtx.bKdpTrap = FALSE;
+	traceCtx.bKdTrap = FALSE;
+	traceCtx.bKiDispatchException = FALSE;
 
-	auto traceResult = DoStackTrace([&](void** stack_current) -> BOOLEAN
-		{
-			if (*(uint64_t*)stack_current == 0)
-				return FALSE;
-
-			if (!bKeStallExecutionProcessor)
-			{
-				if (*(uint64_t*)stack_current > (uint64_t)KeStallExecutionProcessor + 0x50 &&
-					*(uint64_t*)stack_current - (uint64_t)KeStallExecutionProcessor < 0x200)
-					bKeStallExecutionProcessor = true;
-
-				return FALSE;
-			}
-
-			if (!bKeFreezeExecution)
-			{
-				if (*(uint64_t*)stack_current > KeFreezeExecution + 0x50 &&
-					*(uint64_t*)stack_current - KeFreezeExecution < 0x200)
-					bKeFreezeExecution = true;
-
-				return FALSE;
-			}
-
-			if (!bKdpReport)
-			{
-				if (*(uint64_t*)stack_current > KdpReport + 0x50 &&
-					*(uint64_t*)stack_current - KdpReport < 0x150)
-					bKdpReport = true;
-
-				return FALSE;
-			}
-
-			if (!bKdpTrap)
-			{
-				if (*(uint64_t*)stack_current > KdpTrap + 0x50 &&
-					*(uint64_t*)stack_current - KdpTrap < 0x250)
-					bKdpTrap = true;
-
-				return FALSE;
-			}
-
-			if (!bKdTrap)
-			{
-				if (*(uint64_t*)stack_current > KdTrap &&
-					*(uint64_t*)stack_current - KdTrap < 0x50)
-					bKdTrap = true;
-
-				return FALSE;
-			}
-
-			if (!bKiDispatchException)
-			{
-				if (*(uint64_t*)stack_current > KiDispatchException + 0x100 &&
-					*(uint64_t*)stack_current - KiDispatchException < 0x400)
-					bKiDispatchException = true;
-
-				return FALSE;
-			}
-
-			return TRUE;
-
-		}, _AddressOfReturnAddress(), true);
+	BOOLEAN traceResult = DoStackTrace(trace_CheckCallCtx, &traceCtx, _AddressOfReturnAddress(), TRUE);
 
 	return traceResult;
 }
 
-extern"C" uint64_t FindExceptionRecord()
+typedef struct {
+	uint64_t ExceptionRecord;
+	uint64_t CorruptContext, CorruptR12;
+	BOOLEAN bFoundExceptionRecord, bFoundCorruptReg;
+} trace_FindExceptionRecord_ctx;
+
+BOOLEAN trace_FindExceptionRecord(void* traceCtx, void** stack_current) {
+	trace_FindExceptionRecord_ctx *ctx = traceCtx;
+	if (!ctx->bFoundCorruptReg)
+	{
+		if (*(uint64_t*)(stack_current) > KeFreezeExecution &&
+			*(uint64_t*)(stack_current)-KeFreezeExecution < 0x200)
+		{
+			//BpMe(__LINE__);
+			if (GetWinver() <= 18363)
+			{
+				//BpMe(__LINE__);
+				//r14
+				uint64_t NewIrql = *(uint64_t*)((uint64_t)stack_current - 4 * 8);
+				__writecr8(NewIrql);
+			}
+			else
+			{
+				if (ctx->CorruptContext)
+				{
+					if ((*(uint64_t*)((uint64_t)stack_current - 3 * 8) & ~0xFF) != ctx->CorruptContext)
+					{
+						//something went wrong
+						BpMe(__LINE__);
+						return FALSE;
+						//__fastfail(0);
+					}
+
+					//r13
+					ctx->CorruptContext = *(uint64_t*)((uint64_t)stack_current - 3 * 8);
+				}
+
+				//mov [rsp+10h], rbp
+				uint64_t OrigIrql = *(uint64_t*)((uint64_t)stack_current + 0x10);
+				__writecr8(OrigIrql);
+			}
+
+			//r12
+			ctx->CorruptR12 = *(uint64_t*)((uint64_t)stack_current - 2 * 8);
+			ctx->bFoundCorruptReg = TRUE;
+		}
+		return FALSE;
+	}
+
+	if (!ctx->bFoundExceptionRecord)
+	{
+		if (*(uint64_t*)(stack_current) > KdEnterDebugger &&
+			*(uint64_t*)(stack_current)-KdEnterDebugger < 0x100 &&
+			*(uint8_t*)(*(uint64_t*)(stack_current)-5) == 0xE8 &&			/* Make sure it's a call */
+			*(uint32_t*)(*(uint64_t*)(stack_current)) == 0x48f08a44			/* mov r14b, al;  mov xxx */
+			)
+		{
+			//r15
+			ctx->ExceptionRecord = *(uint64_t*)((uint64_t)stack_current - 3 * 8);
+			if (!ctx->ExceptionRecord)
+				BpMe(__LINE__);
+			ctx->bFoundExceptionRecord = TRUE;
+
+			if (!ctx->CorruptContext)
+			{
+				BpMe(__LINE__);
+
+				// Context from rsi in KiDispatchException
+				ctx->CorruptContext = *(uint64_t*)((uint64_t)stack_current + 3 * 8);
+			}
+		}
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+uint64_t FindExceptionRecord()
 {
+	/*
 	uint64_t ExceptionRecord = 0;
 
 	uint64_t CorruptContext = 0, CorruptR12 = 0;
@@ -599,82 +691,27 @@ extern"C" uint64_t FindExceptionRecord()
 
 	bool bFoundExceptionRecord = false;
 	bool bFoundCorruptReg = false;
+	*/
+
+	trace_FindExceptionRecord_ctx traceCtx;
+	traceCtx.ExceptionRecord = 0;
+
+	traceCtx.CorruptContext = 0;
+	traceCtx.CorruptR12 = 0;
+	//if (GetWinver() > 18363)
+	//{
+	traceCtx.CorruptContext = GetR13();
+	//}
+
+	traceCtx.bFoundExceptionRecord = FALSE;
+	traceCtx.bFoundCorruptReg = FALSE;
+
 
 	//Find exception record and context. 
 	//Trace from bottom to top since there will be nested exception
-	auto traceResult = DoStackTrace([&](void** stack_current) -> BOOLEAN
-		{
-			if (!bFoundCorruptReg)
-			{
-				if (*(uint64_t*)(stack_current) > KeFreezeExecution &&
-					*(uint64_t*)(stack_current)-KeFreezeExecution < 0x200)
-				{
-					//BpMe(__LINE__);
-					if (GetWinver() <= 18363)
-					{
-						//BpMe(__LINE__);
-						//r14
-						auto NewIrql = *(uint64_t*)((uint64_t)stack_current - 4 * 8);
-						__writecr8(NewIrql);
-					}
-					else
-					{
-						if (CorruptContext)
-						{
-							if ((*(uint64_t*)((uint64_t)stack_current - 3 * 8) & ~0xFF) != CorruptContext)
-							{
-								//something went wrong
-								BpMe(__LINE__);
-								return FALSE;
-								//__fastfail(0);
-							}
+	BOOLEAN traceResult = DoStackTrace(trace_FindExceptionRecord, &traceCtx, _AddressOfReturnAddress(), TRUE);
 
-							//r13
-							CorruptContext = *(uint64_t*)((uint64_t)stack_current - 3 * 8);
-						}
-
-						//mov [rsp+10h], rbp
-						auto OrigIrql = *(uint64_t*)((uint64_t)stack_current + 0x10);
-						__writecr8(OrigIrql);
-					}
-
-					//r12
-					CorruptR12 = *(uint64_t*)((uint64_t)stack_current - 2 * 8);
-					bFoundCorruptReg = true;
-				}
-				return FALSE;
-			}
-
-			if (!bFoundExceptionRecord)
-			{
-				if (*(uint64_t*)(stack_current) > KdEnterDebugger &&
-					*(uint64_t*)(stack_current)-KdEnterDebugger < 0x100 &&
-					*(uint8_t*)(*(uint64_t*)(stack_current)-5) == 0xE8 &&			/* Make sure it's a call */
-					*(uint32_t*)(*(uint64_t*)(stack_current)) == 0x48f08a44			/* mov r14b, al;  mov xxx */
-					)
-				{
-					//r15
-					ExceptionRecord = *(uint64_t*)((uint64_t)stack_current - 3 * 8);
-					if (!ExceptionRecord)
-						BpMe(__LINE__);
-					bFoundExceptionRecord = true;
-
-					if (!CorruptContext)
-					{
-						BpMe(__LINE__);
-
-						// Context from rsi in KiDispatchException
-						CorruptContext = *(uint64_t*)((uint64_t)stack_current + 3 * 8);
-					}
-				}
-				return FALSE;
-			}
-
-			return TRUE;
-
-		}, _AddressOfReturnAddress(), true);
-
-	if (!traceResult || !CorruptContext)
+	if (!traceResult || !traceCtx.CorruptContext)
 	{
 		BpMe(__LINE__);
 		KeBugCheck(0);
@@ -682,12 +719,12 @@ extern"C" uint64_t FindExceptionRecord()
 
 	//if (GetWinver() > 18363)
 	//{
-	SetR13(CorruptContext);
+	SetR13(traceCtx.CorruptContext);
 	//}
 
-	SetR12(CorruptR12);
+	SetR12(traceCtx.CorruptR12);
 
-	return ExceptionRecord;
+	return traceCtx.ExceptionRecord;
 }
 
 void HookKdTrap(ExceptionCallback Handler)
@@ -789,7 +826,7 @@ void HookKdTrap(ExceptionCallback Handler)
 
 
 	//HalpTimerStallCounterPowerChange
-	auto rva = FindPatternSect(halDll, ".text", "48 83 25 ? ? ? ? 00 48 89 1D ? ? ? ? EB");
+	PUCHAR rva = FindPatternSect(halDll, ".text", "48 83 25 ? ? ? ? 00 48 89 1D ? ? ? ? EB");
 	if (!rva)
 	{
 		rva = FindPatternSect(nt, ".text", "48 83 25 ? ? ? ? 00 48 89 1D ? ? ? ? EB");
@@ -808,12 +845,12 @@ void HookKdTrap(ExceptionCallback Handler)
 
 	//KdpDebugRoutineSelect
 
-	auto pKdpDebugRoutineSelect = RVA2(KdTrap + 4, 7, 2);
+	uint64_t pKdpDebugRoutineSelect = RVA2(KdTrap + 4, 7, 2);
 	*(uint32_t*)(pKdpDebugRoutineSelect) = 1;
 
 	//catch first time execption
-	auto aa = &NtGlobalFlag;
-	auto phys = MmGetPhysicalAddress(*(PVOID*)aa);
+	ULONG *aa = &NtGlobalFlag;
+	PHYSICAL_ADDRESS phys = MmGetPhysicalAddress(*(PVOID*)aa);
 	int one = 1;
 	WritePhysicalSafe2(phys.QuadPart, &one, 4);
 
@@ -904,17 +941,17 @@ void UnHookKdTrap()
 	{
 		//todo halt processor
 
-		auto aa = &NtGlobalFlag;
-		auto phys = MmGetPhysicalAddress(*(PVOID*)aa);
+		ULONG *aa = &NtGlobalFlag;
+		PHYSICAL_ADDRESS phys = MmGetPhysicalAddress(*(PVOID*)aa);
 		int zero = 0;
 		WritePhysicalSafe2(phys.QuadPart, &zero, 4);
 
-		auto pKdpDebugRoutineSelect = RVA2(KdTrap + 4, 7, 2);
+		uint64_t pKdpDebugRoutineSelect = RVA2(KdTrap + 4, 7, 2);
 		*(uint32_t*)(pKdpDebugRoutineSelect) = 0;
 
 		*(uint64_t*)(HalpStallCounter + 0x70) = OldHalQueryCounter;
 
-		KdReleaseDebuggerLock(__readcr8());
+		KdReleaseDebuggerLock((unsigned __int8)__readcr8());
 	}
 
 }

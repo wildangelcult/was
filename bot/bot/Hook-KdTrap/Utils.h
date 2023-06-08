@@ -6,7 +6,8 @@
 #include <ntimage.h>
 #include <ntstrsafe.h>
 #include <intrin.h>
-#include <stdint.h>
+//NOTE: this is a LOCAL file
+#include "../stdint.h"
 
 #define RVA(Instr, InstrSize) ((DWORD64)Instr + InstrSize + *(LONG*)((DWORD64)Instr + (InstrSize - sizeof(LONG))))
 #define RVA2(Instr, InstrSize, Off) ((DWORD64)Instr + InstrSize + *(LONG*)((DWORD64)Instr + Off))

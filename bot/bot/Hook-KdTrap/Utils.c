@@ -1,24 +1,25 @@
-#include "utils.h"
+#include "Utils.h"
 
 NTSTATUS getKernelModuleByName(const char* moduleName, PVOID* moduleStart, size_t* moduleSize)
 {
 	if (!moduleStart)
 		return STATUS_INVALID_PARAMETER;
 
-	size_t size{};
-	ZwQuerySystemInformation(SystemModuleInformation, nullptr, size, reinterpret_cast<PULONG>(&size));
+	size_t size = 0;
+	ZwQuerySystemInformation(SystemModuleInformation, NULL, (ULONG)size, (PULONG)&size);
 
-	const auto listHeader = ExAllocatePool(NonPagedPool, size);
+	const PVOID listHeader = ExAllocatePool(NonPagedPool, size);
 	if (!listHeader)
 		return STATUS_MEMORY_NOT_ALLOCATED;
 
-	if (const auto status = ZwQuerySystemInformation(SystemModuleInformation, listHeader, size, reinterpret_cast<PULONG>(&size)))
+	NTSTATUS status;
+	if ((status = ZwQuerySystemInformation(SystemModuleInformation, listHeader, (ULONG)size, (PULONG)&size)))
 		return status;
 
-	auto currentModule = reinterpret_cast<PSYSTEM_MODULE_INFORMATION>(listHeader)->Module;
-	for (size_t i = 0; i < reinterpret_cast<PSYSTEM_MODULE_INFORMATION>(listHeader)->Count; ++i, ++currentModule)
+	PSYSTEM_MODULE_ENTRY currentModule = ((PSYSTEM_MODULE_INFORMATION)listHeader)->Module;
+	for (size_t i = 0; i < ((PSYSTEM_MODULE_INFORMATION)listHeader)->Count; ++i, ++currentModule)
 	{
-		const auto currentModuleName = reinterpret_cast<const char*>(currentModule->FullPathName + currentModule->OffsetToFileName);
+		const char* currentModuleName = (const char*)(currentModule->FullPathName + currentModule->OffsetToFileName);
 		if (!strcmp(moduleName, currentModuleName))
 		{
 			*moduleStart = currentModule->ImageBase;
@@ -31,7 +32,7 @@ NTSTATUS getKernelModuleByName(const char* moduleName, PVOID* moduleStart, size_
 }
 
 #define SizeAlign(Size) ((Size + 0xFFF) & 0xFFFFFFFFFFFFF000)
-#define IMAGE_FIRST_SECTION(NtHeader) (PIMAGE_SECTION_HEADER)(NtHeader + 1)
+#define HOOKKD_IMAGE_FIRST_SECTION(NtHeader) (PIMAGE_SECTION_HEADER)(NtHeader + 1)
 #define NT_HEADER(ModBase) (PIMAGE_NT_HEADERS)((ULONG64)(ModBase) + ((PIMAGE_DOS_HEADER)(ModBase))->e_lfanew)
 
 BOOLEAN StrICmp(const char* Str, const char* InStr, BOOLEAN Two)
@@ -55,7 +56,7 @@ PVOID FindSection(PVOID ModBase, const char* Name, PULONG SectSize)
 {
 	//get & enum sections
 	PIMAGE_NT_HEADERS NT_Header = NT_HEADER(ModBase);
-	PIMAGE_SECTION_HEADER Sect = IMAGE_FIRST_SECTION(NT_Header);
+	PIMAGE_SECTION_HEADER Sect = HOOKKD_IMAGE_FIRST_SECTION(NT_Header);
 
 	for (PIMAGE_SECTION_HEADER pSect = Sect; pSect < Sect + NT_Header->FileHeader.NumberOfSections; pSect++)
 	{
@@ -64,7 +65,7 @@ PVOID FindSection(PVOID ModBase, const char* Name, PULONG SectSize)
 		*(ULONG64*)&SectName[0] = *(ULONG64*)&pSect->Name[0];
 
 		//check name
-		if (StrICmp(Name, SectName, true))
+		if (StrICmp(Name, SectName, TRUE))
 		{
 			//save size
 			if (SectSize) {
@@ -78,13 +79,13 @@ PVOID FindSection(PVOID ModBase, const char* Name, PULONG SectSize)
 	}
 
 	//no section
-	return nullptr;
+	return NULL;
 }
 
-bool readByte(PVOID addr, UCHAR* ret)
+BOOLEAN readByte(PVOID addr, UCHAR* ret)
 {
 	*ret = *(volatile char*)addr;
-	return true;
+	return TRUE;
 }
 
 PUCHAR FindPatternSect(PVOID ModBase, const char* SectName, const char* Pattern)
@@ -99,22 +100,22 @@ PUCHAR FindPatternSect(PVOID ModBase, const char* SectName, const char* Pattern)
 	PUCHAR ModuleStart = (PUCHAR)FindSection(ModBase, SectName, &SectSize);
 	PUCHAR ModuleEnd = ModuleStart + SectSize;
 
-	if (!ModuleStart) return nullptr;
+	if (!ModuleStart) return NULL;
 
 	//scan pattern main
-	PUCHAR FirstMatch = nullptr;
+	PUCHAR FirstMatch = NULL;
 	const char* CurPatt = Pattern;
 	if (*Pattern == '\0')
 		CurPatt++;
 
 	for (; ModuleStart < ModuleEnd; ++ModuleStart)
 	{
-		bool SkipByte = (*CurPatt == '\?');
+		BOOLEAN SkipByte = (*CurPatt == '\?');
 
 		//hp(ModuleStart);
 		UCHAR byte1;
 		if (!readByte(ModuleStart, &byte1)) {
-			auto addr2 = (uint64_t)ModuleStart;
+			uint64_t addr2 = (uint64_t)ModuleStart;
 			addr2 &= 0xFFFFFFFFFFFFF000;
 			addr2 += 0xFFF;
 			ModuleStart = (PUCHAR)addr2;
@@ -134,13 +135,13 @@ PUCHAR FindPatternSect(PVOID ModBase, const char* SectName, const char* Pattern)
 		else if (FirstMatch) {
 			ModuleStart = FirstMatch;
 		Skip:
-			FirstMatch = nullptr;
+			FirstMatch = NULL;
 			CurPatt = Pattern;
 		}
 	}
 
 	//failed
-	return nullptr;
+	return NULL;
 }
 
 PUCHAR FindPatternRange(PVOID Start, uint32_t size, const char* Pattern)
@@ -156,19 +157,19 @@ PUCHAR FindPatternRange(PVOID Start, uint32_t size, const char* Pattern)
 	PUCHAR ModuleEnd = ModuleStart + size;
 
 	//scan pattern main
-	PUCHAR FirstMatch = nullptr;
+	PUCHAR FirstMatch = NULL;
 	const char* CurPatt = Pattern;
 	if (*Pattern == '\0')
 		CurPatt++;
 
 	for (; ModuleStart < ModuleEnd; ++ModuleStart)
 	{
-		bool SkipByte = (*CurPatt == '\?');
+		BOOLEAN SkipByte = (*CurPatt == '\?');
 
 		//hp(ModuleStart);
 		UCHAR byte1;
 		if (!readByte(ModuleStart, &byte1)) {
-			auto addr2 = (uint64_t)ModuleStart;
+			uint64_t addr2 = (uint64_t)ModuleStart;
 			addr2 &= 0xFFFFFFFFFFFFF000;
 			addr2 += 0xFFF;
 			ModuleStart = (PUCHAR)addr2;
@@ -178,21 +179,43 @@ PUCHAR FindPatternRange(PVOID Start, uint32_t size, const char* Pattern)
 
 		if (SkipByte || byte1 == GetByte(CurPatt)) {
 			if (!FirstMatch) FirstMatch = ModuleStart;
-			SkipByte ? CurPatt += 2 : CurPatt += 3;
+			SkipByte ? (CurPatt += 2) : (CurPatt += 3);
 			if (CurPatt[-1] == 0) return FirstMatch;
 		}
 
 		else if (FirstMatch) {
 			ModuleStart = FirstMatch;
 		Skip:
-			FirstMatch = nullptr;
+			FirstMatch = NULL;
 			CurPatt = Pattern;
 		}
 	}
 
 	//failed
-	return nullptr;
+	return NULL;
 }
+
+#ifndef MM_COPY_MEMORY_PHYSICAL
+typedef struct _MM_COPY_ADDRESS {
+    union {
+        PVOID VirtualAddress;
+        PHYSICAL_ADDRESS PhysicalAddress;
+    };
+} MM_COPY_ADDRESS, *PMMCOPY_ADDRESS;
+
+#define MM_COPY_MEMORY_PHYSICAL             0x1
+#define MM_COPY_MEMORY_VIRTUAL              0x2
+
+NTKERNELAPI
+NTSTATUS
+MmCopyMemory (
+    _In_ PVOID TargetAddress,
+    _In_ MM_COPY_ADDRESS SourceAddress,
+    _In_ SIZE_T NumberOfBytes,
+    _In_ ULONG Flags,
+    _Out_ PSIZE_T NumberOfBytesTransferred
+    );
+#endif
 
 NTSTATUS CopyPhysics(void* Dst, const void* PhySics, size_t _MaxCount)
 {
@@ -232,12 +255,12 @@ PVOID GetProcAddress(PVOID ModBase, const char* Name)
 		const char* ExpName = (const char*)ModBase + ((ULONG*)((ULONG64)ModBase + ExportDir->AddressOfNames))[i];
 
 		//check export name
-		if (StrICmp(Name, ExpName, true))
+		if (StrICmp(Name, ExpName, TRUE))
 			return (PVOID)((ULONG64)ModBase + ((ULONG*)((ULONG64)ModBase + ExportDir->AddressOfFunctions))[Ordinal]);
 	}
 
 	//no export
-	return nullptr;
+	return NULL;
 }
 
 //MmMapIoSpace, not allow write to page table 
