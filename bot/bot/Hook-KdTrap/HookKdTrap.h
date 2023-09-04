@@ -3,7 +3,7 @@
 
 typedef BOOLEAN (__stdcall *ExceptionCallback)(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context);
 
-void HookKdTrap(ExceptionCallback Handler);
+void HookKdTrap(ExceptionCallback Handler/*, uint64_t* myAddr*/);
 
 void UnHookKdTrap();
 

@@ -727,7 +727,7 @@ uint64_t FindExceptionRecord()
 	return traceCtx.ExceptionRecord;
 }
 
-void HookKdTrap(ExceptionCallback Handler)
+void HookKdTrap(ExceptionCallback Handler/*, uint64_t* myAddr*/)
 {
 
 	//KeIpiGenericCall(ipicallback, 0);
@@ -855,6 +855,10 @@ void HookKdTrap(ExceptionCallback Handler)
 	WritePhysicalSafe2(phys.QuadPart, &one, 4);
 
 	g_Handler = Handler;
+
+	//MY CODE
+	//*myAddr = (uint64_t)FindPatternSect(nt, ".text", "0F 84 ? ? ? ? C1 E0 03");
+	//*myAddr = RVA((*myAddr), 6);
 
 	//*(uint64_t*)0xfffff8007e450c64 = 1;
 

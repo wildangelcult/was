@@ -1,11 +1,9 @@
-#ifndef __HANDLER_H
-#define __HANDLER_H
+#ifndef __QUERYDIR_H
+#define __QUERYDIR_H
 
-#include <ntddk.h>
+#include <wdm.h>
 
-BOOLEAN handler(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context);
-
-typedef NTSTATUS (NTAPI *NtQueryDirectoryFileEx_t)(
+NTSTATUS NTAPI hookNtQueryDirectoryFileEx(
 	HANDLE FileHandle,
 	HANDLE Event,
 	PIO_APC_ROUTINE ApcRoutine,
@@ -18,6 +16,4 @@ typedef NTSTATUS (NTAPI *NtQueryDirectoryFileEx_t)(
 	PUNICODE_STRING FileName
 );
 
-extern NtQueryDirectoryFileEx_t origNtQueryDirectoryFileEx;
-
-#endif //__HANDLER_H
+#endif //__QUERYDIR_H

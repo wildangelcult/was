@@ -1,5 +1,5 @@
-#ifndef __UTILS_H
-#define __UTILS_H
+#ifndef __UTILS_KDTRAP_H
+#define __UTILS_KDTRAP_H
 
 #include <ntifs.h>
 #include <ntddk.h>
@@ -607,4 +607,4 @@ NTSTATUS WritePhysicalSafe2(DWORD64 PhysicalAddress, PVOID Buffer, uint64_t Leng
 //} RFLAGS;
 //
 
-#endif //__UTILS_H
+#endif //__UTILS_KDTRAP_H

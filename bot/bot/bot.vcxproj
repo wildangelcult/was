@@ -138,6 +138,11 @@
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <TreatWarningAsError>false</TreatWarningAsError>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
@@ -147,6 +152,8 @@
     <ClCompile Include="Hook-KdTrap\HookKdTrap.c" />
     <ClCompile Include="Hook-KdTrap\Utils.c" />
     <ClCompile Include="main.c" />
+    <ClCompile Include="querydir.c" />
+    <ClCompile Include="util.c" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="Hook-KdTrap\asm.asm" />
@@ -156,8 +163,10 @@
     <ClInclude Include="hde\hde64.h" />
     <ClInclude Include="hde\table64.h" />
     <ClInclude Include="Hook-KdTrap\HookKdTrap.h" />
+    <ClInclude Include="querydir.h" />
     <ClInclude Include="stdint.h" />
     <ClInclude Include="Hook-KdTrap\Utils.h" />
+    <ClInclude Include="util.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -40,6 +40,12 @@
     <ClCompile Include="hde\hde64.c">
       <Filter>hde</Filter>
     </ClCompile>
+    <ClCompile Include="util.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="querydir.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="Hook-KdTrap\asm.asm">
@@ -64,6 +70,12 @@
     </ClInclude>
     <ClInclude Include="hde\table64.h">
       <Filter>hde</Filter>
+    </ClInclude>
+    <ClInclude Include="util.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="querydir.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
