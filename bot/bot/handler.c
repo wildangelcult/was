@@ -24,14 +24,27 @@ NTSTATUS hookNtQueryDirectoryFileEx() {
 */
 
 BOOLEAN handler(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context) {
-	//hde64s hs;
+	hde64s hs;
 	uint64_t dr6;
 	BOOLEAN result = FALSE;
 	if (ExceptionRecord->ExceptionCode == STATUS_BREAKPOINT || ExceptionRecord->ExceptionCode == STATUS_SINGLE_STEP) {
+		dr6 = __readdr(6);
+
 		if (Context->Rip == NtQueryDirectoryFileEx) {
 			Context->Rip = hookNtQueryDirectoryFileEx;
 			//Context->EFlags |= 1 << 16;
 			result = TRUE;
+		}
+		if (dr6 & (1 << 13)) {
+			hde64_disasm((PVOID)Context->Rip, &hs);
+			if (hs.opcode == 0x0f && hs.opcode2 == 0x23) {
+				KeBugCheck(0x69696969);
+			}
+			Context->EFlags |= 1 << 16;
+			result = TRUE;
+		}
+		if (!(__readdr(7) & (1 << 1))) {
+			KeBugCheck(0x42424242);
 		}
 		/*
 		if ((dr6 = __readdr(6)) & 0x1) {
@@ -45,7 +58,6 @@ BOOLEAN handler(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context) {
 			*(uint64_t*)Context->Rsp = (uint64_t)hookNtQueryDirectoryFileEx;
 		}
 		*/
-		dr6 = __readdr(6);
 		dr6 &= ~(0xf | 1 << 13 | 1 << 14);
 		__writedr(6, dr6);
 		//Context->EFlags |= 1 << 16;
