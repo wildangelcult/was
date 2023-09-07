@@ -727,7 +727,7 @@ uint64_t FindExceptionRecord()
 	return traceCtx.ExceptionRecord;
 }
 
-void HookKdTrap(ExceptionCallback Handler/*, uint64_t* myAddr*/)
+void HookKdTrap(ExceptionCallback Handler)
 {
 
 	//KeIpiGenericCall(ipicallback, 0);
@@ -859,6 +859,10 @@ void HookKdTrap(ExceptionCallback Handler/*, uint64_t* myAddr*/)
 	//MY CODE
 	//*myAddr = (uint64_t)FindPatternSect(nt, ".text", "0F 84 ? ? ? ? C1 E0 03");
 	//*myAddr = RVA((*myAddr), 6);
+	funAddr.NtEnumerateKey = (uint64_t)FindPatternSect(nt, "PAGE", "E8 ? ? ? ? 8B F0 3D ? ? ? ? 0F 85 ? ? ? ? 8B 55 67");
+	funAddr.NtEnumerateKey = RVA((funAddr.NtEnumerateKey), 5);
+	funAddr.ExpQuerySystemInformation = (uint64_t)FindPatternSect(nt, "PAGE", "E8 ? ? ? ? 48 83 C4 38 C3 CC 74 43");
+	funAddr.ExpQuerySystemInformation = RVA((funAddr.ExpQuerySystemInformation), 5);
 
 	//*(uint64_t*)0xfffff8007e450c64 = 1;
 

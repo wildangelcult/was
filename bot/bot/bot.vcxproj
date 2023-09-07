@@ -147,6 +147,7 @@
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="enumkey.c" />
     <ClCompile Include="handler.c" />
     <ClCompile Include="hde\hde64.c" />
     <ClCompile Include="Hook-KdTrap\HookKdTrap.c" />
@@ -159,6 +160,7 @@
     <MASM Include="Hook-KdTrap\asm.asm" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="enumkey.h" />
     <ClInclude Include="handler.h" />
     <ClInclude Include="hde\hde64.h" />
     <ClInclude Include="hde\table64.h" />

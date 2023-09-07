@@ -1,9 +1,17 @@
 #ifndef __HOOKKDTRAP_H
 #define __HOOKKDTRAP_H
 
+#include "../stdint.h"
+
 typedef BOOLEAN (__stdcall *ExceptionCallback)(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context);
 
-void HookKdTrap(ExceptionCallback Handler/*, uint64_t* myAddr*/);
+typedef struct funAddr_s {
+	uint64_t NtEnumerateKey, ExpQuerySystemInformation;
+} funAddr_t;
+
+extern funAddr_t funAddr;
+
+void HookKdTrap(ExceptionCallback Handler);
 
 void UnHookKdTrap();
 

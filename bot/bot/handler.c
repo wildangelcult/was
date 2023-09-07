@@ -2,6 +2,7 @@
 #include <intrin.h>
 
 #include "handler.h"
+#include "Hook-KdTrap/HookKdTrap.h"
 #include "hde/hde64.h"
 #include "querydir.h"
 
@@ -35,16 +36,19 @@ BOOLEAN handler(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context) {
 			//Context->EFlags |= 1 << 16;
 			result = TRUE;
 		}
-		if (dr6 & (1 << 13)) {
-			hde64_disasm((PVOID)Context->Rip, &hs);
-			if (hs.opcode == 0x0f && hs.opcode2 == 0x23) {
-				KeBugCheck(0x69696969);
-			}
+		if (Context->Rip == funAddr.NtEnumerateKey) {
 			Context->EFlags |= 1 << 16;
 			result = TRUE;
 		}
-		if (!(__readdr(7) & (1 << 1))) {
-			KeBugCheck(0x42424242);
+		if (dr6 & (1 << 13)) {
+			hde64_disasm((PVOID)Context->Rip, &hs);
+			if (hs.opcode == 0x0f && hs.opcode2 == 0x23) {
+				Context->Rip += hs.len;
+			} else {
+				//TODO: subject to change
+				Context->EFlags |= 1 << 16;
+			}
+			result = TRUE;
 		}
 		/*
 		if ((dr6 = __readdr(6)) & 0x1) {

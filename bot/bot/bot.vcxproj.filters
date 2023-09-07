@@ -46,6 +46,9 @@
     <ClCompile Include="querydir.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="enumkey.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="Hook-KdTrap\asm.asm">
@@ -75,6 +78,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="querydir.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="enumkey.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

