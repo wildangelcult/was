@@ -18,6 +18,16 @@ typedef NTSTATUS (NTAPI *NtQueryDirectoryFileEx_t)(
 	PUNICODE_STRING FileName
 );
 
+typedef NTSTATUS (NTAPI *NtEnumerateKey_t)(
+    HANDLE KeyHandle,
+    ULONG Index,
+    KEY_INFORMATION_CLASS KeyInformationClass,
+    PVOID KeyInformation,
+    ULONG Length,
+    PULONG ResultLength
+);
+
 extern NtQueryDirectoryFileEx_t origNtQueryDirectoryFileEx;
+extern NtEnumerateKey_t origNtEnumerateKey;
 
 #endif //__HANDLER_H

@@ -16,4 +16,6 @@ NTSTATUS NTAPI hookNtQueryDirectoryFileEx(
 	PUNICODE_STRING FileName
 );
 
+extern UNICODE_STRING hiddenFile;
+
 #endif //__QUERYDIR_H

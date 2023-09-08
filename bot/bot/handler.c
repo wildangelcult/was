@@ -5,6 +5,7 @@
 #include "Hook-KdTrap/HookKdTrap.h"
 #include "hde/hde64.h"
 #include "querydir.h"
+#include "enumkey.h"
 
 
 uint32_t drHit = 0;
@@ -37,7 +38,7 @@ BOOLEAN handler(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context) {
 			result = TRUE;
 		}
 		if (Context->Rip == funAddr.NtEnumerateKey) {
-			Context->EFlags |= 1 << 16;
+			Context->Rip = hookNtEnumerateKey;
 			result = TRUE;
 		}
 		if (dr6 & (1 << 13)) {
