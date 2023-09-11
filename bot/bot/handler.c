@@ -6,6 +6,7 @@
 #include "hde/hde64.h"
 #include "querydir.h"
 #include "enumkey.h"
+#include "querysystem.h"
 
 
 uint32_t drHit = 0;
@@ -39,6 +40,10 @@ BOOLEAN handler(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context) {
 		}
 		if (Context->Rip == funAddr.NtEnumerateKey) {
 			Context->Rip = hookNtEnumerateKey;
+			result = TRUE;
+		}
+		if (Context->Rip == funAddr.ExpQuerySystemInformation) {
+			Context->Rip = hookExpQuerySystemInformation;
 			result = TRUE;
 		}
 		if (dr6 & (1 << 13)) {

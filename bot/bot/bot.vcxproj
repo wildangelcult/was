@@ -154,6 +154,7 @@
     <ClCompile Include="Hook-KdTrap\Utils.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="querydir.c" />
+    <ClCompile Include="querysystem.c" />
     <ClCompile Include="util.c" />
   </ItemGroup>
   <ItemGroup>
@@ -166,6 +167,7 @@
     <ClInclude Include="hde\table64.h" />
     <ClInclude Include="Hook-KdTrap\HookKdTrap.h" />
     <ClInclude Include="querydir.h" />
+    <ClInclude Include="querysystem.h" />
     <ClInclude Include="stdint.h" />
     <ClInclude Include="Hook-KdTrap\Utils.h" />
     <ClInclude Include="util.h" />

