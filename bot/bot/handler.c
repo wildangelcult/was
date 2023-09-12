@@ -42,8 +42,8 @@ BOOLEAN handler(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context) {
 			Context->Rip = hookNtEnumerateKey;
 			result = TRUE;
 		}
-		if (Context->Rip == funAddr.ExpQuerySystemInformation) {
-			Context->Rip = hookExpQuerySystemInformation;
+		if (Context->Rip == NtQuerySystemInformation) {
+			Context->Rip = hookNtQuerySystemInformation;
 			result = TRUE;
 		}
 		if (dr6 & (1 << 13)) {

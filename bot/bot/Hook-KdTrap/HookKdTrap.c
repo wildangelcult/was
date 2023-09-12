@@ -861,8 +861,8 @@ void HookKdTrap(ExceptionCallback Handler)
 	//*myAddr = RVA((*myAddr), 6);
 	funAddr.NtEnumerateKey = (uint64_t)FindPatternSect(nt, "PAGE", "E8 ? ? ? ? 8B F0 3D ? ? ? ? 0F 85 ? ? ? ? 8B 55 67");
 	funAddr.NtEnumerateKey = RVA((funAddr.NtEnumerateKey), 5);
-	funAddr.ExpQuerySystemInformation = (uint64_t)FindPatternSect(nt, "PAGE", "E8 ? ? ? ? 48 83 C4 38 C3 CC 74 43");
-	funAddr.ExpQuerySystemInformation = RVA((funAddr.ExpQuerySystemInformation), 5);
+	//funAddr.ExpQuerySystemInformation = (uint64_t)FindPatternSect(nt, "PAGE", "E8 ? ? ? ? 48 83 C4 38 C3 CC 74 43");
+	//funAddr.ExpQuerySystemInformation = RVA((funAddr.ExpQuerySystemInformation), 5);
 
 	//*(uint64_t*)0xfffff8007e450c64 = 1;
 

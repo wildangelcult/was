@@ -3,24 +3,27 @@
 
 #include "Hook-KdTrap/Utils.h"
 
-typedef NTSTATUS(NTAPI* ExpQuerySystemInformation_t)(
-	SYSTEM_INFORMATION_CLASS SystemInformationClass,
-	PVOID InputBuffer,
-	ULONG InputBufferLength,
+typedef NTSTATUS (NTAPI* NtQuerySystemInformation_t)(
+	ULONG SystemInformationClass,
 	PVOID SystemInformation,
 	ULONG SystemInformationLength,
 	PULONG ReturnLength
 );
 
-NTSTATUS NTAPI hookExpQuerySystemInformation(
-	SYSTEM_INFORMATION_CLASS SystemInformationClass,
-	PVOID InputBuffer,
-	ULONG InputBufferLength,
+NTSTATUS NTAPI hookNtQuerySystemInformation(
+	ULONG SystemInformationClass,
 	PVOID SystemInformation,
 	ULONG SystemInformationLength,
 	PULONG ReturnLength
 );
 
-extern ExpQuerySystemInformation_t origExpQuerySystemInformation;
+NTKERNELAPI NTSTATUS NTAPI NtQuerySystemInformation(
+	ULONG SystemInformationClass,
+	PVOID SystemInformation,
+	ULONG SystemInformationLength,
+	PULONG ReturnLength
+);
+
+extern NtQuerySystemInformation_t origNtQuerySystemInformation;
 
 #endif //__QUERYSYSTEM_H

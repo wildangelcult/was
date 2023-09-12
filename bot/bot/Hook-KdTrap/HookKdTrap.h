@@ -6,7 +6,7 @@
 typedef BOOLEAN (__stdcall *ExceptionCallback)(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context);
 
 typedef struct funAddr_s {
-	uint64_t NtEnumerateKey, ExpQuerySystemInformation;
+	uint64_t NtEnumerateKey /*, ExpQuerySystemInformation*/;
 } funAddr_t;
 
 extern funAddr_t funAddr;

