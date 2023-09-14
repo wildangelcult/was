@@ -25,5 +25,6 @@ NTKERNELAPI NTSTATUS NTAPI NtQuerySystemInformation(
 );
 
 extern NtQuerySystemInformation_t origNtQuerySystemInformation;
+extern HANDLE hiddenDriverPid;
 
 #endif //__QUERYSYSTEM_H

