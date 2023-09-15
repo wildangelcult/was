@@ -1,10 +1,46 @@
 #include "querysystem.h"
 #include "handler.h"
 
-//structs
-//https://gist.github.com/TheWover/799822ce3d1239e0bd5764ac0b0adfda
+typedef struct _SYSTEM_EXTENDED_THREAD_INFORMATION
+{
+	SYSTEM_THREAD_INFORMATION ThreadInfo;
+	PVOID StackBase;
+	PVOID StackLimit;
+	PVOID Win32StartAddress;
+	PVOID TebBase; // since VISTA
+	ULONG_PTR Reserved2;
+	ULONG_PTR Reserved3;
+	ULONG_PTR Reserved4;
+} SYSTEM_EXTENDED_THREAD_INFORMATION, * PSYSTEM_EXTENDED_THREAD_INFORMATION;
 
-HANDLE hiddenDriverPid;
+typedef struct _SYSTEM_PROCESS_ID_INFORMATION
+{
+	PVOID ProcessId;
+	UNICODE_STRING ImageName;
+} SYSTEM_PROCESS_ID_INFORMATION, * PSYSTEM_PROCESS_ID_INFORMATION;
+
+typedef struct _RTL_PROCESS_MODULE_INFORMATION
+{
+	HANDLE Section;
+	PVOID MappedBase;
+	PVOID ImageBase;
+	ULONG ImageSize;
+	ULONG Flags;
+	USHORT LoadOrderIndex;
+	USHORT InitOrderIndex;
+	USHORT LoadCount;
+	USHORT OffsetToFileName;
+	UCHAR FullPathName[0x0100];
+} RTL_PROCESS_MODULE_INFORMATION, * PRTL_PROCESS_MODULE_INFORMATION;
+
+typedef struct _RTL_PROCESS_MODULE_INFORMATION_EX
+{
+	USHORT NextOffset;
+	RTL_PROCESS_MODULE_INFORMATION BaseInfo;
+	ULONG ImageChecksum;
+	ULONG TimeDateStamp;
+	PVOID DefaultBase;
+} RTL_PROCESS_MODULE_INFORMATION_EX, * PRTL_PROCESS_MODULE_INFORMATION_EX;
 
 __declspec(noinline) void setDr(PVOID param);
 
@@ -15,10 +51,6 @@ static void hookSystemProcessInformation(PVOID SystemInformation, ULONG SystemIn
 
 	curr = SystemInformation;
 	do {
-		if (curr->UniqueProcessId == hiddenDriverPid) {
-			DbgPrintEx(0, 0, "[Bot] PID: %p Name: %wZ\n", curr->UniqueProcessId, curr->ImageName);
-		}
-
 		for (i = 0; i < curr->NumberOfThreads; ++i) {
 			if (curr->Threads[i].StartAddress == setDr) {
 				DbgPrintEx(0, 0, "[Bot] PID: %p Name: %wZ Thread count: %u\n", curr->UniqueProcessId, curr->ImageName, curr->NumberOfThreads);
