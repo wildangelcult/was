@@ -13,8 +13,10 @@ NTSTATUS getKernelModuleByName(const char* moduleName, PVOID* moduleStart, size_
 		return STATUS_MEMORY_NOT_ALLOCATED;
 
 	NTSTATUS status;
-	if ((status = ZwQuerySystemInformation(SystemModuleInformation, listHeader, (ULONG)size, (PULONG)&size)))
+	if ((status = ZwQuerySystemInformation(SystemModuleInformation, listHeader, (ULONG)size, (PULONG)&size))) {
+		ExFreePool(listHeader);
 		return status;
+	}
 
 	PSYSTEM_MODULE_ENTRY currentModule = ((PSYSTEM_MODULE_INFORMATION)listHeader)->Module;
 	for (size_t i = 0; i < ((PSYSTEM_MODULE_INFORMATION)listHeader)->Count; ++i, ++currentModule)
@@ -25,9 +27,11 @@ NTSTATUS getKernelModuleByName(const char* moduleName, PVOID* moduleStart, size_
 			*moduleStart = currentModule->ImageBase;
 			if (moduleSize)
 				*moduleSize = currentModule->ImageSize;
+			ExFreePool(listHeader);
 			return STATUS_SUCCESS;
 		}
 	}
+	ExFreePool(listHeader);
 	return STATUS_NOT_FOUND;
 }
 
