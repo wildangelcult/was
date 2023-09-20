@@ -27,10 +27,11 @@ __declspec(noinline) void thread(PVOID param) {
 	}
 }
 
+void HookPosition(uint64_t a1, uint64_t a2);
 funAddr_t funAddr;
 
 __declspec(noinline) void setDr(PVOID param) {
-	uint64_t dr0, dr1, dr2, dr7;
+	uint64_t dr0, dr1, dr2, dr3, dr7;
 	LARGE_INTEGER delay;
 	delay.QuadPart = -1;
 	dr7 = __readdr(7);
@@ -47,10 +48,18 @@ __declspec(noinline) void setDr(PVOID param) {
 	dr7 |= 0x1 << 5;
 	dr7 &= ~(0xf << 24);
 
+	dr3 = HookPosition;
+	dr7 |= 0x1 << 7;
+	dr7 &= ~(0xf << 28);
+	dr7 |= (0x1 << 1 | 0x1) << 28;
+
+	//dr7 |= 0x1 << 13;
+
 	while (1) {
 		__writedr(0, dr0);
 		__writedr(1, dr1);
 		__writedr(2, dr2);
+		__writedr(3, dr3);
 		__writedr(7, dr7);
 		KeDelayExecutionThread(UserMode, TRUE, &delay);
 	}
@@ -143,8 +152,8 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 
 	n = KeQueryMaximumProcessorCount();
 	for (i = 0; i < n; ++i) {
-		PsCreateSystemThread(&han, 0, NULL, NULL, NULL, setDr, NULL);
-		ZwClose(han);
+		//PsCreateSystemThread(&han, 0, NULL, NULL, NULL, setDr, NULL);
+		//ZwClose(han);
 	}
 
 	DbgPrintEx(0, 0, "[Bot] %wZ\n", *RegistryPath);

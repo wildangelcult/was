@@ -47,65 +47,19 @@ BOOLEAN handler(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context) {
 			Context->Rip = hookNtQuerySystemInformation;
 			result = TRUE;
 		}
+		if (dr6 & (1 << 3)) {
+			KeBugCheck(0x69696969);
+			result = TRUE;
+		}
 		if (dr6 & (1 << 13)) {
 			hde64_disasm((PVOID)Context->Rip, &hs);
 			if (hs.opcode == 0x0f && hs.opcode2 == 0x21) {
 				//Context->EFlags |= 1 << 16;
 				Context->Rip += hs.len;
 				if (!hs.rex_b) {
-					switch (hs.modrm_rm) {
-						case 0:
-							reg = &Context->Rax;
-							break;
-						case 1:
-							reg = &Context->Rcx;
-							break;
-						case 2:
-							reg = &Context->Rdx;
-							break;
-						case 3:
-							reg = &Context->Rbx;
-							break;
-						case 4:
-							reg = &Context->Rsp;
-							break;
-						case 5:
-							reg = &Context->Rbp;
-							break;
-						case 6:
-							reg = &Context->Rsi;
-							break;
-						case 7:
-							reg = &Context->Rdi;
-							break;
-					}
+					reg = &(&Context->Rax)[hs.modrm_rm];
 				} else {
-					switch (hs.modrm_rm) {
-						case 0:
-							reg = &Context->R8;
-							break;
-						case 1:
-							reg = &Context->R9;
-							break;
-						case 2:
-							reg = &Context->R10;
-							break;
-						case 3:
-							reg = &Context->R11;
-							break;
-						case 4:
-							reg = &Context->R12;
-							break;
-						case 5:
-							reg = &Context->R13;
-							break;
-						case 6:
-							reg = &Context->R14;
-							break;
-						case 7:
-							reg = &Context->R15;
-							break;
-					}
+					reg = &(&Context->R8)[hs.modrm_rm];
 				}
 				debugExt = __readcr4() & (1 << 3);
 				dr6 &= ~(0xf | 1 << 13 | 1 << 14);
@@ -156,6 +110,7 @@ BOOLEAN handler(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context) {
 		*/
 		dr6 &= ~(0xf | 1 << 13 | 1 << 14);
 		__writedr(6, dr6);
+
 		//Context->EFlags |= 1 << 16;
 	}
 	return result;
